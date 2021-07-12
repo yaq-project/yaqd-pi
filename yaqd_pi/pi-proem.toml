@@ -1,0 +1,93 @@
+protocol = "pi-proem"
+doc = ""
+traits = ["has-measure-trigger", "is-sensor", "has-mapping", "uses-serial", "is-daemon"]
+
+[links]
+source = "https://gitlab.com/yaq/yaqd-pi"
+bugtracker = "https://gitlab.com/yaq/yaqd-pi/-/issues"
+
+[installation]
+PyPI = "https://pypi.org/project/yaqd-pi"
+
+[config]
+
+[config.make]
+default = "princeton_instruments"
+
+[config.model]
+default = "proEM-HS:512BX3"
+
+[config.sensor_temperature_setpoint]
+type = "float"
+doc = "Set the sensor temperature in deg C. \\
+        Be careful if setting to anything but -70.0 C \\
+        Do not set below -80.0 C"""
+default = -70.0
+
+[config.roi_x_binning]
+type = "int"
+doc = """Option to bin pixels horizontally.\\
+	Allowed values are 1, 2, 4, and 8. \\
+	This feature should not be used if taking a spectrum. \\
+	Default is no horizontal binning (1)."""
+default = 1
+
+[config.roi_y_binning]
+type = "int"
+doc = """Option to bin pixels vertically. \\
+	Allowed values are 1, 2, 4, 8, 32, 100. \\
+	Default is no vertical binning (1)."""
+default = 1
+
+[config.roi_width]
+type = ["null", "int"]
+doc = """Specify the number of pixel columns to acquire for the ROI. \\
+	Can be no larger than (512 - roi_left + 1). \\
+	Defaults to use all columns starting from 'roi_left'. """
+default = "__null__"
+
+[config.roi_left]
+type = ["null", "int"]
+doc = """Specify the left-most pixel column of the ROI. \\
+	Defaults to the full left of the camera sensor (column 1)."""
+default = "__null__"
+
+[config.roi_height]
+type = ["null", "int"]
+doc = """Specify the number of pixel rows to acquire for the ROI. \\
+    	 Can be no larger than (512 - roi_top + 1). \\
+    	 Defaults to use all rows starting from 'roi_top'."""
+
+[config.roi_top]
+type = ["null", "int"]
+doc = """Specify the top-most pixel row of the ROI.\\
+    	 Defaults to the top row of the camera sensor (row 1)."""
+default = "__null__"
+
+[config.em_gain]
+type = "int"
+doc = """Gain values can be integers from 1-1000. \\
+    	 This value is mapped onto a CCD clock voltage in the extended multiplication (EM) register. \\
+    	 Note: If using over 100, read manual about careful operation. \\
+    	 Defualt is 1."""
+default = 1
+
+[config.adc_analog_gain]
+type = "string"
+doc = """Gain setting for output amplifier.\\
+         When EM gain is 1, the output amplifier is at the Low Noise register.\\
+         When EM gain is not 1, the output amplifier at the EM register."""
+defualt = "Low"
+
+[config.exposure_time]
+type = "float"
+doc = "Camera sensor exposure time (in milliseconds)."
+default = 33
+ 
+[state]
+
+[messages]
+
+# should eventually put some function in here that can provide the various
+# parameters available to the ProEM and the settable values of corresponding
+# parameter. That can come at a later time though. 
