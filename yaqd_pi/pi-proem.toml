@@ -19,7 +19,7 @@ default = "proEM-HS:512BX3"
 
 [config.sensor_temperature_setpoint]
 type = "float"
-doc = "Set the sensor temperature in deg C. \\
+doc = """Set the sensor temperature in deg C. \\
         Be careful if setting to anything but -70.0 C \\
         Do not set below -80.0 C"""
 default = -70.0
