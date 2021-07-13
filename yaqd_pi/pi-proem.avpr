@@ -2,7 +2,7 @@
     "config": {
         "adc_analog_gain": {
             "defualt": "Low",
-            "doc": "Gain setting for output amplifier.\\\n         When EM gain is 1, the output amplifier is at the Low Noise register.\\\n         When EM gain is not 1, the output amplifier at the EM register.",
+            "doc": "Gain setting for output amplifier.\\\n         When EM gain is 1, the output amplifier is at the Low Noise register.\\\n         When EM gain is not 1, the output amplifier at the EM register.\n         The gain options are Low, Medium, and High.",
             "type": "string"
         },
         "em_gain": {
