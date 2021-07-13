@@ -73,12 +73,12 @@ doc = """Gain values can be integers from 1-1000. \\
 default = 1
 
 [config.adc_analog_gain]
-type = PicamEnums.AdcAnalogGain
+type = "string"
 doc = """Gain setting for output amplifier.\\
          When EM gain is 1, the output amplifier is at the Low Noise register.\\
          When EM gain is not 1, the output amplifier at the EM register.
          The gain options are Low, Medium, and High."""
-defualt = Low
+defualt = "Low"
 
 [config.exposure_time]
 type = "float"

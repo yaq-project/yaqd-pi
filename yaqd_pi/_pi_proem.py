@@ -105,11 +105,11 @@ class PiProem(HasMapping, HasMeasureTrigger, IsSensor, IsDaemon):
         data = self.proem.grab_image()
         imshow(data)
        
-    def start_live_Video(self):
-        self.proem.start_live_video()
+    # def start_live_Video(self):
+    #     self.proem.start_live_video()
 
-    def stop_live_Video(self):
-        self.proem.stop_live_video()
+    # def stop_live_Video(self):
+    #     self.proem.stop_live_video()
            
     # async def update_state(self):
     #     """Continually monitor and update the current daemon state."""
