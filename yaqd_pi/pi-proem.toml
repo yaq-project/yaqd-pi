@@ -1,6 +1,6 @@
 protocol = "pi-proem"
 doc = ""
-traits = ["has-measure-trigger", "is-sensor", "has-mapping", "uses-serial", "is-daemon"]
+traits = ["has-measure-trigger", "is-sensor", "has-mapping", "is-daemon"]
 
 [links]
 source = "https://gitlab.com/yaq/yaqd-pi"
@@ -42,7 +42,7 @@ default = 1
 [config.roi_width]
 type = ["null", "int"]
 doc = """Specify the number of pixel columns to acquire for the ROI. \\
-	Can be no larger than (512 - roi_left + 1). \\
+	Can be no larger than (512 - roi_left). \\
 	Defaults to use all columns starting from 'roi_left'. """
 default = "__null__"
 
@@ -55,8 +55,9 @@ default = "__null__"
 [config.roi_height]
 type = ["null", "int"]
 doc = """Specify the number of pixel rows to acquire for the ROI. \\
-    	 Can be no larger than (512 - roi_top + 1). \\
+    	 Can be no larger than (512 - roi_top). \\
     	 Defaults to use all rows starting from 'roi_top'."""
+default = "__null__"
 
 [config.roi_top]
 type = ["null", "int"]
@@ -78,7 +79,7 @@ doc = """Gain setting for output amplifier.\\
          When EM gain is 1, the output amplifier is at the Low Noise register.\\
          When EM gain is not 1, the output amplifier at the EM register.
          The gain options are Low, Medium, and High."""
-defualt = "Low"
+default = "Low"
 
 [config.exposure_time]
 type = "float"
@@ -91,4 +92,4 @@ default = 33
 
 # should eventually put some function in here that can provide the various
 # parameters available to the ProEM and the settable values of corresponding
-# parameter. That can come at a later time though. 
+# parameter. 
