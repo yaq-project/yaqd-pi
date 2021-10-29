@@ -1,25 +1,10 @@
 {
     "config": {
-        "adc_analog_gain": {
-            "default": "Low",
-            "doc": "Gain setting for output amplifier.\\\n         When EM gain is 1, the output amplifier is at the Low Noise register.\\\n         When EM gain is not 1, the output amplifier at the EM register.\n         The gain options are Low, Medium, and High.",
-            "type": "string"
-        },
-        "em_gain": {
-            "default": 1,
-            "doc": "Gain values can be integers from 1-1000. \\\n    \t This value is mapped onto a CCD clock voltage in the extended multiplication (EM) register. \\\n    \t Note: If using over 100, read manual about careful operation. \\\n    \t Defualt is 1.",
-            "type": "int"
-        },
         "enable": {
             "default": true,
             "doc": "Disable this daemon. The kind entry-point will not attempt to start this daemon.",
             "origin": "is-daemon",
             "type": "boolean"
-        },
-        "exposure_time": {
-            "default": 33,
-            "doc": "Camera sensor exposure time (in milliseconds).",
-            "type": "float"
         },
         "log_level": {
             "default": "info",
@@ -73,48 +58,6 @@
             "origin": "is-daemon",
             "type": "int"
         },
-        "roi_height": {
-            "default": null,
-            "doc": "Specify the number of pixel rows to acquire for the ROI. \\\n    \t Can be no larger than (512 - roi_top + 1). \\\n    \t Defaults to use all rows starting from 'roi_top'.",
-            "type": [
-                "null",
-                "int"
-            ]
-        },
-        "roi_left": {
-            "default": null,
-            "doc": "Specify the left-most pixel column of the ROI. \\\n\tDefaults to the full left of the camera sensor (column 1).",
-            "type": [
-                "null",
-                "int"
-            ]
-        },
-        "roi_top": {
-            "default": null,
-            "doc": "Specify the top-most pixel row of the ROI.\\\n    \t Defaults to the top row of the camera sensor (row 1).",
-            "type": [
-                "null",
-                "int"
-            ]
-        },
-        "roi_width": {
-            "default": null,
-            "doc": "Specify the number of pixel columns to acquire for the ROI. \\\n\tCan be no larger than (512 - roi_left + 1). \\\n\tDefaults to use all columns starting from 'roi_left'. ",
-            "type": [
-                "null",
-                "int"
-            ]
-        },
-        "roi_x_binning": {
-            "default": 1,
-            "doc": "Option to bin pixels horizontally.\\\n\tAllowed values are 1, 2, 4, and 8. \\\n\tThis feature should not be used if taking a spectrum. \\\n\tDefault is no horizontal binning (1).",
-            "type": "int"
-        },
-        "roi_y_binning": {
-            "default": 1,
-            "doc": "Option to bin pixels vertically. \\\n\tAllowed values are 1, 2, 4, 8, 32, 100. \\\n\tDefault is no vertical binning (1).",
-            "type": "int"
-        },
         "sensor_temperature_setpoint": {
             "default": -70.0,
             "doc": "Set the sensor temperature in deg C. \\\n        Be careful if setting to anything but -70.0 C \\\n        Do not set below -80.0 C",
@@ -144,6 +87,10 @@
             "origin": "is-daemon",
             "request": [],
             "response": "boolean"
+        },
+        "get_adc_analog_gain": {
+            "request": [],
+            "response": "string"
         },
         "get_channel_mappings": {
             "doc": "Defines which mapping keys apply to which channel keys. Each channel may have zero or many mappings. Mappings must broadcast into corresponding channels.",
@@ -202,6 +149,14 @@
             "request": [],
             "response": "string"
         },
+        "get_em_gain": {
+            "request": [],
+            "response": "int"
+        },
+        "get_exposure_time": {
+            "request": [],
+            "response": "float"
+        },
         "get_mapping_id": {
             "doc": "Mapping ID. This integer increments every time the mapping is updated. Clients can safely check this id to verify that their cached mappings are correct, if desired.",
             "origin": "has-mapping",
@@ -254,6 +209,14 @@
                 "type": "int"
             }
         },
+        "get_roi": {
+            "request": [],
+            "response": "proem_roi"
+        },
+        "get_sensor_temperature": {
+            "request": [],
+            "response": "float"
+        },
         "get_state": {
             "doc": "Get version of the running daemon",
             "origin": "is-daemon",
@@ -284,6 +247,42 @@
             ],
             "response": "int"
         },
+        "set_adc_analog_gain": {
+            "request": [
+                {
+                    "name": "gain",
+                    "type": "string"
+                }
+            ],
+            "response": "null"
+        },
+        "set_em_gain": {
+            "request": [
+                {
+                    "name": "em_gain",
+                    "type": "int"
+                }
+            ],
+            "response": "null"
+        },
+        "set_exposure_time": {
+            "request": [
+                {
+                    "name": "exposure_time",
+                    "type": "float"
+                }
+            ],
+            "response": "null"
+        },
+        "set_roi": {
+            "request": [
+                {
+                    "name": "roi",
+                    "type": "proem_roi"
+                }
+            ],
+            "response": "null"
+        },
         "shutdown": {
             "doc": "Cleanly shutdown (or restart) daemon.",
             "origin": "is-daemon",
@@ -305,7 +304,26 @@
     },
     "protocol": "pi-proem",
     "requires": [],
-    "state": {},
+    "state": {
+        "adc_analog_gain": {
+            "default": "Low",
+            "type": "string"
+        },
+        "em_gain": {
+            "default": 1,
+            "type": "int"
+        },
+        "exposure_time": {
+            "default": 33.0,
+            "doc": "Camera sensor exposure time (in milliseconds).",
+            "type": "float"
+        },
+        "roi": {
+            "default": {},
+            "doc": "The ROI.",
+            "type": "proem_roi"
+        }
+    },
     "traits": [
         "has-mapping",
         "has-measure-trigger",
@@ -313,6 +331,42 @@
         "is-sensor"
     ],
     "types": [
+        {
+            "fields": [
+                {
+                    "default": 1,
+                    "name": "x_binning",
+                    "type": "int"
+                },
+                {
+                    "default": 1,
+                    "name": "y_binning",
+                    "type": "int"
+                },
+                {
+                    "default": 0,
+                    "name": "left",
+                    "type": "int"
+                },
+                {
+                    "default": 512,
+                    "name": "width",
+                    "type": "int"
+                },
+                {
+                    "default": 0,
+                    "name": "top",
+                    "type": "int"
+                },
+                {
+                    "default": 512,
+                    "name": "height",
+                    "type": "int"
+                }
+            ],
+            "name": "proem_roi",
+            "type": "record"
+        },
         {
             "fields": [
                 {
