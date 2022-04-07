@@ -195,9 +195,9 @@
             "response": {
                 "type": "map",
                 "values": [
+                    "int",
                     "double",
-                    "ndarray",
-                    "int"
+                    "ndarray"
                 ]
             }
         },
@@ -208,6 +208,10 @@
             "response": {
                 "type": "int"
             }
+        },
+        "get_readout_count": {
+            "request": [],
+            "response": "int"
         },
         "get_roi": {
             "request": [],
@@ -274,6 +278,15 @@
             ],
             "response": "null"
         },
+        "set_readout_count": {
+            "request": [
+                {
+                    "name": "readout_count",
+                    "type": "int"
+                }
+            ],
+            "response": "null"
+        },
         "set_roi": {
             "request": [
                 {
@@ -317,6 +330,11 @@
             "default": 33.0,
             "doc": "Camera sensor exposure time (in milliseconds).",
             "type": "float"
+        },
+        "readout_count": {
+            "default": 1,
+            "doc": "Number of frames to grab in the acquisition.",
+            "type": "int"
         },
         "roi": {
             "default": {},

@@ -1,6 +1,6 @@
 protocol = "pi-proem"
 doc = ""
-traits = ["has-measure-trigger", "is-sensor", "has-mapping", "is-daemon"]
+traits = ["has-mapping", "has-measure-trigger", "is-sensor", "is-daemon"]
 
 [links]
 source = "https://gitlab.com/yaq/yaqd-pi"
@@ -35,7 +35,21 @@ doc = """Set the sensor temperature in deg C. \\
         Be careful if setting to anything but -70.0 C \\
         Do not set below -80.0 C"""
 default = -70.0
- 
+
+#[config.prism_AOI]
+#type = ["null", "float"]
+#doc = """Angle of incident ray on prism face in deg. \\
+#         Default is None."""
+#default = "__null__"
+#
+#[config.spectral_axis_range]
+#type = ["null", "list"]
+#doc = """The desired range of wavelengths that is displayed on the spectral \\
+#         axis of the detector. Units of microns. First item in the list is \\
+#         the bluest color, second item is the reddest e.g. [0.400, 0.915]\\
+#         Default is None."""
+#default = "__null__"
+# 
 [state]
                 	   
 roi.type = "proem_roi"
@@ -52,6 +66,10 @@ exposure_time.type = "float"
 exposure_time.default = 33.0
 exposure_time.doc = "Camera sensor exposure time (in milliseconds)."
 
+readout_count.type = "int"
+readout_count.default = 1
+readout_count.doc =  "Number of frames to grab in the acquisition."
+
 adc_analog_gain.type = "string"
 adc_analog_gain.default = "Low"
 #adc_analog_gain.doc = """Gain setting for output amplifier.\\
@@ -67,6 +85,9 @@ get_em_gain.response = "int"
 
 set_exposure_time.request = [{name="exposure_time", type="float"}]
 get_exposure_time.response = "float"
+
+set_readout_count.request = [{name="readout_count", type="int"}]
+get_readout_count.response = "int"
 
 set_adc_analog_gain.request = [{name="gain", type="string"}]
 get_adc_analog_gain.response = "string"
