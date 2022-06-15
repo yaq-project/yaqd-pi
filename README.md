@@ -12,3 +12,7 @@ yaq daemons for Princeton Instruments spectrographs and cameras.
 This package contains the following daemon(s):
 
 - https://yaq.fyi/daemons/pi-proem
+
+## maintainers
+
+- [Jason Scheeler](https://github.com/jscheeler1)
