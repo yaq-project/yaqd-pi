@@ -5,8 +5,7 @@ build-backend = "flit_core.buildapi"
 [tool.flit.metadata]
 module = "yaqd_pi"
 dist-name = "yaqd-pi"
-author = "Jason Scheeler"
-author-email = "jscheeler@wisc.edu"
+author = "yaq developers"
 home-page = "https://yaq.fyi"
 description-file = "README.md"
 requires-python = ">=3.7"
@@ -23,8 +22,8 @@ classifiers = [
 ]
 
 [tool.flit.metadata.urls]
-Source = "https://gitlab.com/yaq/yaqd-pi"
-Issues = "https://gitlab.com/yaq/yaqd-pi/issues"
+Source = "https://github.com/yaq-project/yaqd-pi"
+Issues = "https://github.com/yaq-project/yaqd-pi/issues"
 
 [tool.flit.metadata.requires-extra]
 dev = ["black", "pre-commit"]

@@ -3,8 +3,8 @@ doc = ""
 traits = ["has-mapping", "has-measure-trigger", "is-sensor", "is-daemon"]
 
 [links]
-source = "https://gitlab.com/yaq/yaqd-pi"
-bugtracker = "https://gitlab.com/yaq/yaqd-pi/-/issues"
+source = "https://github.com/yaq-project/yaqd-pi"
+bugtracker = "https://github.com/yaq-project/yaqd-pi/issues"
 
 [installation]
 PyPI = "https://pypi.org/project/yaqd-pi"
@@ -49,9 +49,9 @@ default = -70.0
 #         the bluest color, second item is the reddest e.g. [0.400, 0.915]\\
 #         Default is None."""
 #default = "__null__"
-# 
+#
 [state]
-                	   
+
 roi.type = "proem_roi"
 roi.default = {}
 roi.doc = "The ROI."
