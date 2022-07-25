@@ -49,9 +49,9 @@ default = -70.0
 #         the bluest color, second item is the reddest e.g. [0.400, 0.915]\\
 #         Default is None."""
 #default = "__null__"
-# 
+#
 [state]
-                	   
+
 roi.type = "proem_roi"
 roi.default = {}
 roi.doc = "The ROI."
