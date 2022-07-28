@@ -21,6 +21,11 @@ fields = [
     {"name"="height", "type"="int", "default"=512}
 ]
 
+[[types]]
+type = "enum"
+name = "spectrometer_mode_enum"
+symbols = ["spatial", "spectral"]
+
 [config]
 
 [config.make]
@@ -36,20 +41,21 @@ doc = """Set the sensor temperature in deg C. \\
         Do not set below -80.0 C"""
 default = -70.0
 
-#[config.prism_AOI]
-#type = ["null", "float"]
-#doc = """Angle of incident ray on prism face in deg. \\
-#         Default is None."""
-#default = "__null__"
-#
-#[config.spectral_axis_range]
-#type = ["null", "list"]
-#doc = """The desired range of wavelengths that is displayed on the spectral \\
-#         axis of the detector. Units of microns. First item in the list is \\
-#         the bluest color, second item is the reddest e.g. [0.400, 0.915]\\
-#         Default is None."""
-#default = "__null__"
-# 
+[config.grating_aoi]
+type = "float"
+doc = """Angle of incident beam on grating face in deg. \\
+         Default is None."""
+default = 11.4
+
+[config.spectral_range]
+type = "array"
+items = "float"
+doc = """The desired range of wavelengths that is displayed on the spectral \\
+         axis of the detector. Units of microns. First item in the list is \\
+        the bluest color, second item is the reddest e.g. [0.400, 0.810]\\
+         Default is None."""
+default = [0.4, 0.81]
+ 
 [state]
                 	   
 roi.type = "proem_roi"
@@ -72,8 +78,16 @@ readout_count.doc =  "Number of frames to grab in the acquisition."
 
 adc_analog_gain.type = "string"
 adc_analog_gain.default = "Low"
-#adc_analog_gain.doc = """Gain setting for output amplifier.\\
+# adc_analog_gain.doc = """Gain setting for output amplifier.\\
 #                         The gain options are Low, Medium, and High."""
+
+spectrometer_mode.type = "spectrometer_mode_enum"
+spectrometer_mode.default = "spatial"
+# spectrometer_mode.doc = """Toggles what mode the spectrometer is in.\\
+#                            'spatial' is 2D spatial imaging.\\
+#                           'spectral' is spectral along horizontal axis.\\
+#                            Direct consequence is how the output image array is mapped.\\
+#                            Default is 'spatial'."""
 
 [messages]
 
@@ -91,5 +105,8 @@ get_readout_count.response = "int"
 
 set_adc_analog_gain.request = [{name="gain", type="string"}]
 get_adc_analog_gain.response = "string"
+
+set_spectrometer_mode.request = [{name="spectrometer_mode", type="spectrometer_mode_enum"}]
+get_spectrometer_mode.response = "spectrometer_mode_enum"
 
 get_sensor_temperature.response = "float"

@@ -6,6 +6,11 @@
             "origin": "is-daemon",
             "type": "boolean"
         },
+        "grating_aoi": {
+            "default": 11.4,
+            "doc": "Angle of incident beam on grating face in deg. \\\n         Default is None.",
+            "type": "float"
+        },
         "log_level": {
             "default": "info",
             "doc": "Set daemon log-level.",
@@ -71,6 +76,15 @@
                 "null",
                 "string"
             ]
+        },
+        "spectral_range": {
+            "default": [
+                0.4,
+                0.81
+            ],
+            "doc": "The desired range of wavelengths that is displayed on the spectral \\\n         axis of the detector. Units of microns. First item in the list is \\\n        the bluest color, second item is the reddest e.g. [0.400, 0.810]\\\n         Default is None.",
+            "items": "float",
+            "type": "array"
         }
     },
     "doc": "",
@@ -221,6 +235,10 @@
             "request": [],
             "response": "float"
         },
+        "get_spectrometer_mode": {
+            "request": [],
+            "response": "spectrometer_mode_enum"
+        },
         "get_state": {
             "doc": "Get version of the running daemon",
             "origin": "is-daemon",
@@ -296,6 +314,15 @@
             ],
             "response": "null"
         },
+        "set_spectrometer_mode": {
+            "request": [
+                {
+                    "name": "spectrometer_mode",
+                    "type": "spectrometer_mode_enum"
+                }
+            ],
+            "response": "null"
+        },
         "shutdown": {
             "doc": "Cleanly shutdown (or restart) daemon.",
             "origin": "is-daemon",
@@ -340,6 +367,10 @@
             "default": {},
             "doc": "The ROI.",
             "type": "proem_roi"
+        },
+        "spectrometer_mode": {
+            "default": "spatial",
+            "type": "spectrometer_mode_enum"
         }
     },
     "traits": [
@@ -384,6 +415,14 @@
             ],
             "name": "proem_roi",
             "type": "record"
+        },
+        {
+            "name": "spectrometer_mode_enum",
+            "symbols": [
+                "spatial",
+                "spectral"
+            ],
+            "type": "enum"
         },
         {
             "fields": [
