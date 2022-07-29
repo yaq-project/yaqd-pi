@@ -33,9 +33,12 @@ class PiProem(HasMapping, HasMeasureTrigger, IsSensor, IsDaemon):
         self.proem = deviceArray[0].create()
         # make the static wavelength to pixel mapping an attribute of the daemon; don't update self._mappings as this changes between spatial and spectral
         self.static_mapping = self._gen_mapping()
-        # set roi to default values upon startup
+        # set key parameters to default values upon startup
         self.set_spectrometer_mode("spatial")
         self.set_roi({"left":0, "top":0, "width":512, "height":512, "x_binning":1, "y_binning":1})
+        self.set_em_gain(1)
+        self.set_exposure_time(33)
+        self.set_readout_count(1)
     
         self._set_temperature()
         
