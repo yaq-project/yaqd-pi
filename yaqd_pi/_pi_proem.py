@@ -124,7 +124,14 @@ class PiProem(HasMapping, HasMeasureTrigger, IsSensor, IsDaemon):
                      self._state["roi"]["top"], self._state["roi"]["top"] + self._state["roi"]["height"] // self._state["roi"]["y_binning"], dtype="i2")[:, None],
                     "wavelength": self.static_mapping[None, :]
                     }
+                self.proem.set_roi(x=0, width=512)
+                self._state["roi"] = {"left": 0, "width": 512, 
+                                      "top": self._state["roi"]["top"],
+                                      "height": self._state["roi"]["height"],
+                                      "x_binning": self._state["roi"]["x_binning"],
+                                      "y_binning": self._state["roi"]["y_binning"]}
                 self._state["spectrometer_mode"] = mode
+                
         
     def get_spectrometer_mode(self):
         return self._state["spectrometer_mode"]
