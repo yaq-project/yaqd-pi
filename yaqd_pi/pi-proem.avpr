@@ -7,8 +7,8 @@
             "type": "boolean"
         },
         "grating_aoi": {
-            "default": 11.4,
-            "doc": "Angle of incident beam on grating face in deg. \\\n         Default is None.",
+            "default": 5,
+            "doc": "Angle of incident beam on grating face in deg. \\\n         Default is 5.",
             "type": "float"
         },
         "log_level": {
@@ -79,10 +79,10 @@
         },
         "spectral_range": {
             "default": [
-                0.4,
-                0.81
+                0.36,
+                0.841
             ],
-            "doc": "The desired range of wavelengths that is displayed on the spectral \\\n         axis of the detector. Units of microns. First item in the list is \\\n        the bluest color, second item is the reddest e.g. [0.400, 0.810]\\\n         Default is None.",
+            "doc": "The desired range of wavelengths that is displayed on the spectral \\\n         axis of the detector. Units of microns. First item in the list is \\\n        the bluest color, second item is the reddest e.g. [0.360, 0.841]",
             "items": "float",
             "type": "array"
         }
@@ -245,6 +245,10 @@
             "request": [],
             "response": "string"
         },
+        "get_trigger_response": {
+            "request": [],
+            "response": "string"
+        },
         "id": {
             "doc": "JSON object with information to identify the daemon, including name, kind, make, model, serial.\n",
             "origin": "is-daemon",
@@ -323,6 +327,15 @@
             ],
             "response": "null"
         },
+        "set_trigger_response": {
+            "request": [
+                {
+                    "name": "trigger_response",
+                    "type": "string"
+                }
+            ],
+            "response": "null"
+        },
         "shutdown": {
             "doc": "Cleanly shutdown (or restart) daemon.",
             "origin": "is-daemon",
@@ -371,6 +384,11 @@
         "spectrometer_mode": {
             "default": "spatial",
             "type": "spectrometer_mode_enum"
+        },
+        "trigger_response": {
+            "default": "NoResponse",
+            "doc": "Toggle camera's trigger response.",
+            "type": "string"
         }
     },
     "traits": [

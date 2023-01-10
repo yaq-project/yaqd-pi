@@ -44,17 +44,16 @@ default = -70.0
 [config.grating_aoi]
 type = "float"
 doc = """Angle of incident beam on grating face in deg. \\
-         Default is None."""
-default = 11.4
+         Default is 5."""
+default = 5
 
 [config.spectral_range]
 type = "array"
 items = "float"
 doc = """The desired range of wavelengths that is displayed on the spectral \\
          axis of the detector. Units of microns. First item in the list is \\
-        the bluest color, second item is the reddest e.g. [0.400, 0.810]\\
-         Default is None."""
-default = [0.4, 0.81]
+        the bluest color, second item is the reddest e.g. [0.360, 0.841]"""
+default = [0.36, 0.841]
  
 [state]
                 	   
@@ -89,6 +88,10 @@ spectrometer_mode.default = "spatial"
 #                            Direct consequence is how the output image array is mapped.\\
 #                            Default is 'spatial'."""
 
+trigger_response.type = "string"
+trigger_response.default = "NoResponse"
+trigger_response.doc = "Toggle camera's trigger response."
+
 [messages]
 
 set_roi.request = [{name="roi", type="proem_roi"}]
@@ -108,5 +111,8 @@ get_adc_analog_gain.response = "string"
 
 set_spectrometer_mode.request = [{name="spectrometer_mode", type="spectrometer_mode_enum"}]
 get_spectrometer_mode.response = "spectrometer_mode_enum"
+
+set_trigger_response.request = [{name="trigger_response", type="string"}]
+get_trigger_response.response = "string"
 
 get_sensor_temperature.response = "float"

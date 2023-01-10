@@ -48,7 +48,7 @@ class PiProem(HasMapping, HasMeasureTrigger, IsSensor, IsDaemon):
                       ***Leaving roi unchanged.***""")
         elif self._state["spectrometer_mode"] == "spectral" and roi["x_binning"] != 1:
             print("""You're in spectral mode and you wish to bin spectral axis, or have not changed x_binning from spatial mode yet.
-                     Considering doing set_roi() and changing x_binning=1.
+                     Consider doing set_roi() and changing x_binning=1.
                      ***leaving roi unchanged.*** """)
         else:
             self.proem.set_roi(x=roi["left"], y=roi["top"], width=roi["width"],height=roi["height"],
@@ -106,7 +106,7 @@ class PiProem(HasMapping, HasMeasureTrigger, IsSensor, IsDaemon):
     def get_adc_analog_gain(self):
         return self._state["adc_analog_gain"] 
     
-    def set_spectrometer_mode(self, mode):
+    def set_spectrometer_mode(self, mode: str):
         if mode == "spatial":
             self._mappings = {"y_index": np.arange(
                            self._state["roi"]["top"], self._state["roi"]["top"] + self._state["roi"]["height"] // self._state["roi"]["y_binning"], dtype="i2")[:, None],
@@ -117,8 +117,8 @@ class PiProem(HasMapping, HasMeasureTrigger, IsSensor, IsDaemon):
         if mode == "spectral":
             if self._state["roi"]["x_binning"] != 1:
                 print("""You're now in spectral mode and would bin spectral axis with current roi settings.
-                     Considering changing x_binning=1 via set_roi().
-                     ***leaving roi spectrometer_mode unchanged.*** """)
+                     Consider changing x_binning=1 via set_roi().
+                     ***leaving spectrometer_mode unchanged.*** """)
             else:
                 self._mappings = {"y_index": np.arange(
                      self._state["roi"]["top"], self._state["roi"]["top"] + self._state["roi"]["height"] // self._state["roi"]["y_binning"], dtype="i2")[:, None],
@@ -129,27 +129,37 @@ class PiProem(HasMapping, HasMeasureTrigger, IsSensor, IsDaemon):
     def get_spectrometer_mode(self):
         return self._state["spectrometer_mode"]
     
+    def set_trigger_response(self, trigger_response: str):
+        self.proem.params.TriggerResponse.set_value(getattr(PicamEnums.TriggerResponse, trigger_response))
+        self._state["trigger_response"] = self.proem.params.TriggerResponse.get_value().name
+        
+    def get_trigger_response(self):
+        return self._state["trigger_response"]
+
+    ### you will want to check that the changes work on the lab machine as well--
+    
     def _gen_mapping(self):
         "get map corresponding to static aoi and wavelength range."
         # define input paramaters
         mm_per_pixel = 0.016
-        num_pixels = 512
         v = 200 # g/mm; grating groove spacing
         a = (v * 10**-3)**-1 # um/g
-        aoi = np.radians(self._config["grating_roi"])
+        aoi = np.radians(self._config["grating_aoi"])
         ws = np.linspace(self._config["spectral_range"][0], self._config["spectral_range"][1], 2048) # um
         f = 85 # mm; focal length of focusing lens
+        n = 1.6 # rough index of refraction of grating
         # calculate output angles
-        aods = np.arcsin((a * np.sin(aoi) + ws) / a)
+        aods = np.arcsin(n * np.sin(aoi) - (ws / a))
         # convert angle to space
         xs = f * np.tan(aods)
-        rel_xs = np.abs(xs - xs.min())
-        # map spatially correlated wavelengths onto detector
+        rel_xs = np.abs(xs - xs.min()) # start from 0 and count up in length
+        # map spatially correlated wavelengths onto detector by interpolating
         spec_divided = rel_xs / mm_per_pixel
         g = interp1d(spec_divided, ws)
+        num_pixels = np.round(spec_divided[0], 0)
         pixels = np.arange(num_pixels)
         out = g(pixels) * 1000
-        return np.flip(out) # to match physical geometry of spectrometer
+        return np.flip(out) # account for physical orientation of spectrometer
     
     def _set_temperature(self):
         self.proem.params.SensorTemperatureSetPoint.set_value(self._config["sensor_temperature_setpoint"])
