@@ -17,7 +17,7 @@ fields = [
     {"name"="y_binning", "type"="int", "default"=1},
     {"name"="left", "type"="int", "default"=0},
     {"name"="width", "type"="int", "default"=512},
-    {"name"="top", "type"="int", "default"=0},
+    {"name"="bottom", "type"="int", "default"=0},
     {"name"="height", "type"="int", "default"=512}
 ]
 
@@ -25,6 +25,11 @@ fields = [
 type = "enum"
 name = "spectrometer_mode_enum"
 symbols = ["spatial", "spectral"]
+
+[[types]]
+type = "enum"
+name = "frame_processing_method_enum"
+symbols = ["average", "sum"]
 
 [config]
 
@@ -92,6 +97,10 @@ trigger_response.type = "string"
 trigger_response.default = "NoResponse"
 trigger_response.doc = "Toggle camera's trigger response."
 
+frame_processing_method.type = "frame_processing_method_enum"
+frame_processing_method.default = "average"
+frame_processing_method.doc = "Choose to average or sum frames in multi-frame acquisition."
+
 [messages]
 
 set_roi.request = [{name="roi", type="proem_roi"}]
@@ -114,5 +123,8 @@ get_spectrometer_mode.response = "spectrometer_mode_enum"
 
 set_trigger_response.request = [{name="trigger_response", type="string"}]
 get_trigger_response.response = "string"
+
+set_frame_processing_method.request = [{name="frame_processing_method", type="frame_processing_method_enum"}]
+get_frame_processing_method.response = "frame_processing_method_enum"
 
 get_sensor_temperature.response = "float"

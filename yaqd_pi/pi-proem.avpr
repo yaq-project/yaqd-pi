@@ -171,6 +171,10 @@
             "request": [],
             "response": "float"
         },
+        "get_frame_processing_method": {
+            "request": [],
+            "response": "frame_processing_method_enum"
+        },
         "get_mapping_id": {
             "doc": "Mapping ID. This integer increments every time the mapping is updated. Clients can safely check this id to verify that their cached mappings are correct, if desired.",
             "origin": "has-mapping",
@@ -300,6 +304,15 @@
             ],
             "response": "null"
         },
+        "set_frame_processing_method": {
+            "request": [
+                {
+                    "name": "frame_processing_method",
+                    "type": "frame_processing_method_enum"
+                }
+            ],
+            "response": "null"
+        },
         "set_readout_count": {
             "request": [
                 {
@@ -371,6 +384,11 @@
             "doc": "Camera sensor exposure time (in milliseconds).",
             "type": "float"
         },
+        "frame_processing_method": {
+            "default": "average",
+            "doc": "Choose to average or sum frames in multi-frame acquisition.",
+            "type": "frame_processing_method_enum"
+        },
         "readout_count": {
             "default": 1,
             "doc": "Number of frames to grab in the acquisition.",
@@ -422,7 +440,7 @@
                 },
                 {
                     "default": 0,
-                    "name": "top",
+                    "name": "bottom",
                     "type": "int"
                 },
                 {
@@ -439,6 +457,14 @@
             "symbols": [
                 "spatial",
                 "spectral"
+            ],
+            "type": "enum"
+        },
+        {
+            "name": "frame_processing_method_enum",
+            "symbols": [
+                "average",
+                "sum"
             ],
             "type": "enum"
         },

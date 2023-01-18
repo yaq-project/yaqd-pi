@@ -1,13 +1,22 @@
 __all__ = ["PiProem"]
 
-import asyncio
-
 import numpy as np
 
 from yaqd_core import HasMapping, HasMeasureTrigger, IsSensor, IsDaemon
 from instrumental.drivers.cameras.picam import sdk, PicamEnums, list_instruments, PicamError
 from instrumental import Q_
 from scipy.interpolate import interp1d
+from time import sleep
+
+def process_frames(method, raw_arrs):
+    # raw_arrs should be a 3D np array, with dim 0 being number of frames
+    if method == "average":
+        proc_arrs = raw_arrs[:].mean(axis=0)
+    elif method == "sum":
+        proc_arrs = raw_arrs[:].sum(axis=0)
+    else:
+        raise KeyError("sample processing method not recognized")
+    return proc_arrs
 
 
 class PiProem(HasMapping, HasMeasureTrigger, IsSensor, IsDaemon):
@@ -21,8 +30,9 @@ class PiProem(HasMapping, HasMeasureTrigger, IsSensor, IsDaemon):
             
         self._channel_names = ["image"]
         self._channel_units = {"image": "counts"}
-        self._channel_mappings = {"image": ["y_index", "x_index", "wavelength"]}
-        self._mapping_units = {"y_index": "None", "x_index": "None", "wavelength": "nm"}
+        
+        self._channel_mappings = {"image": ["y_index", "x_index", "wavelengths"]}
+        self._mapping_units = {"y_index": "None", "x_index": "None", "wavelengths": "nm"}
         
         # find devices
         deviceArray = list_instruments()
@@ -31,19 +41,27 @@ class PiProem(HasMapping, HasMeasureTrigger, IsSensor, IsDaemon):
             
         # create sdk.PicamCamera() object
         self.proem = deviceArray[0].create()
-        # make the static wavelength to pixel mapping an attribute of the daemon; don't update self._mappings as this changes between spatial and spectral
-        self.static_mapping = self._gen_mapping()
         # set key parameters to default values upon startup
+        self.set_roi({"left":0, "bottom":0, "width":512, "height":512, "x_binning":1, "y_binning":1})
         self.set_spectrometer_mode("spatial")
-        self.set_roi({"left":0, "top":0, "width":512, "height":512, "x_binning":1, "y_binning":1})
+        # make the static wavelengths to pixel mapping an attribute of the daemon; don't update self._mappings as this changes between spatial and spectral
+        self._mappings["wavelengths"] = self._gen_mapping()
         self.set_em_gain(1)
         self.set_exposure_time(33)
         self.set_readout_count(1)
+        self.set_frame_processing_method("average")
     
         self._set_temperature()
         
-    def set_roi(self, roi):
-        if roi["width"] % roi["x_binning"] != 0 or roi["height"] % roi["y_binning"] != 0:
+    def set_roi(self, roi: dict):
+        # because the camera is rotated 90 deg, all of the roi params will be flipped under the hood
+        # so the output arrays and shapes make sense to the user as the camera is currently placed.
+        # i.e. The goal is to have a new user never know the camera is rotated.
+        # so, left <--> bottom
+        # top <--> left
+        # width <--> height
+        # x_binning <--> y_binning
+        if roi["height"] % roi["y_binning"] != 0 or roi["width"] % roi["x_binning"] != 0:
             print("""Pixel binning and extent(s) of roi are not compatible. Check there is no remainder in both width/x_bin and height/y_bin.
                       ***Leaving roi unchanged.***""")
         elif self._state["spectrometer_mode"] == "spectral" and roi["x_binning"] != 1:
@@ -51,26 +69,21 @@ class PiProem(HasMapping, HasMeasureTrigger, IsSensor, IsDaemon):
                      Consider doing set_roi() and changing x_binning=1.
                      ***leaving roi unchanged.*** """)
         else:
-            self.proem.set_roi(x=roi["left"], y=roi["top"], width=roi["width"],height=roi["height"],
-                               x_binning=roi["x_binning"],
-                               y_binning=roi["y_binning"])
+            self.proem.set_roi(x=roi["bottom"], y=roi["left"],
+                               width=roi["height"], height=roi["width"],
+                               x_binning=roi["y_binning"],
+                               y_binning=roi["x_binning"])
         
             pld_roi = self.proem.params.Rois.get_value()[0]
-            self._state["roi"] = {"left":pld_roi.x, "width": pld_roi.width,
-                                  "top":pld_roi.y, "height":pld_roi.height,
-                                  "x_binning":pld_roi.x_binning,
-                                  "y_binning":pld_roi.y_binning}
-            if self._state["spectrometer_mode"] == "spatial":
-                self._mappings = {"y_index": np.arange(
-                               self._state["roi"]["top"], self._state["roi"]["top"] + self._state["roi"]["height"] // self._state["roi"]["y_binning"], dtype="i2")[:, None],
-                              "x_index": np.arange(
-                               self._state["roi"]["left"], self._state["roi"]["left"] + self._state["roi"]["width"] // self._state["roi"]["x_binning"], dtype="i2")[None, :]
-                              }
-            if self._state["spectrometer_mode"] == "spectral":
-                self._mappings = {"y_index": np.arange(
-                              self._state["roi"]["top"], self._state["roi"]["top"] + self._state["roi"]["height"] // self._state["roi"]["y_binning"], dtype="i2")[:, None],
-                             "wavelength": self.static_mapping[None, :]
-                             } 
+            self._state["roi"] = {"left":pld_roi.y, "width": pld_roi.height,
+                                  "bottom":pld_roi.x, "height":pld_roi.width,
+                                  "x_binning":pld_roi.y_binning,
+                                  "y_binning":pld_roi.x_binning}
+            
+            self._mappings["y_index"] = np.arange(self._state["roi"]["bottom"], self._state["roi"]["bottom"] + (self._state["roi"]["height"] // self._state["roi"]["y_binning"]), dtype="i2")[:, None]
+            self._mappings["x_index"] = np.arange(self._state["roi"]["left"], self._state["roi"]["left"] + (self._state["roi"]["width"] // self._state["roi"]["x_binning"]), dtype="i2")[None, :]
+            self._mappings["wavelengths"] = self._gen_mapping()[None, :]
+            
             self._channel_shapes = {"image": (self._state["roi"]["height"] // self._state["roi"]["y_binning"], self._state["roi"]["width"] // self._state["roi"]["x_binning"]),
                                     }
             # channel indexing is (y_index, x_index)
@@ -108,11 +121,15 @@ class PiProem(HasMapping, HasMeasureTrigger, IsSensor, IsDaemon):
     
     def set_spectrometer_mode(self, mode: str):
         if mode == "spatial":
-            self._mappings = {"y_index": np.arange(
-                           self._state["roi"]["top"], self._state["roi"]["top"] + self._state["roi"]["height"] // self._state["roi"]["y_binning"], dtype="i2")[:, None],
-                          "x_index": np.arange(
-                           self._state["roi"]["left"], self._state["roi"]["left"] + self._state["roi"]["width"] // self._state["roi"]["x_binning"], dtype="i2")[None, :]
-                          }
+            # when going to spatial mode from spectral, there's not a good way to have the roi
+            # return to the previous spatial roi since I need to change horizontal mappings
+            # concurrently. I will live with this for now. It's another simple set_roi command
+            # to get it back where the user wants it.
+            self._mappings["x_index"] = np.arange(self._state["roi"]["left"], self._state["roi"]["left"] + (self._state["roi"]["width"] // self._state["roi"]["x_binning"]), dtype="i2")[None, :]
+            self._mappings["wavelengths"] = self._gen_mapping()[None, :]
+            
+            self._channel_shapes = {"image": (self._state["roi"]["height"] // self._state["roi"]["y_binning"], self._state["roi"]["width"] // self._state["roi"]["x_binning"]),
+                                    }
             self._state["spectrometer_mode"] = mode
         if mode == "spectral":
             if self._state["roi"]["x_binning"] != 1:
@@ -120,19 +137,20 @@ class PiProem(HasMapping, HasMeasureTrigger, IsSensor, IsDaemon):
                      Consider changing x_binning=1 via set_roi().
                      ***leaving spectrometer_mode unchanged.*** """)
             else:
-                self._mappings = {"y_index": np.arange(
-                     self._state["roi"]["top"], self._state["roi"]["top"] + self._state["roi"]["height"] // self._state["roi"]["y_binning"], dtype="i2")[:, None],
-                    "wavelength": self.static_mapping[None, :]
-                    }
-                self.proem.set_roi(x=0, width=512)
+                self.proem.set_roi(y=0, height=512) # sets roi on the camera level, not daemon level
                 self._state["roi"] = {"left": 0, "width": 512, 
-                                      "top": self._state["roi"]["top"],
+                                      "bottom": self._state["roi"]["bottom"],
                                       "height": self._state["roi"]["height"],
                                       "x_binning": self._state["roi"]["x_binning"],
-                                      "y_binning": self._state["roi"]["y_binning"]}
+                                      "y_binning": self._state["roi"]["y_binning"]} # sets roi on daemon level
+                
+                self._mappings["x_index"] = np.arange(self._state["roi"]["left"], self._state["roi"]["left"] + (self._state["roi"]["width"] // self._state["roi"]["x_binning"]), dtype="i2")[None, :]
+                self._mappings["wavelengths"] = self._gen_mapping()[None, :]
+                
+                self._channel_shapes = {"image": (self._state["roi"]["height"] // self._state["roi"]["y_binning"], self._mappings["wavelengths"].size),
+                                        }
                 self._state["spectrometer_mode"] = mode
                 
-        
     def get_spectrometer_mode(self):
         return self._state["spectrometer_mode"]
     
@@ -142,8 +160,12 @@ class PiProem(HasMapping, HasMeasureTrigger, IsSensor, IsDaemon):
         
     def get_trigger_response(self):
         return self._state["trigger_response"]
-
-    ### you will want to check that the changes work on the lab machine as well--
+    
+    def set_frame_processing_method(self, method: str):
+        self._state["frame_processing_method"] = method
+        
+    def get_frame_processing_method(self):
+        return self._state["frame_processing_method"]
     
     def _gen_mapping(self):
         "get map corresponding to static aoi and wavelength range."
@@ -154,7 +176,7 @@ class PiProem(HasMapping, HasMeasureTrigger, IsSensor, IsDaemon):
         aoi = np.radians(self._config["grating_aoi"])
         ws = np.linspace(self._config["spectral_range"][0], self._config["spectral_range"][1], 2048) # um
         f = 85 # mm; focal length of focusing lens
-        n = 1.6 # rough index of refraction of grating
+        n = 1.6 # rough grating index of refraction
         # calculate output angles
         aods = np.arcsin(n * np.sin(aoi) - (ws / a))
         # convert angle to space
@@ -166,28 +188,31 @@ class PiProem(HasMapping, HasMeasureTrigger, IsSensor, IsDaemon):
         num_pixels = np.round(spec_divided[0], 0)
         pixels = np.arange(num_pixels)
         out = g(pixels) * 1000
-        return np.flip(out) # account for physical orientation of spectrometer
+        out = out[self._mappings["x_index"][0][:]] # keep horizontal mappings equal size so wt5 file doesn't get confused
+        return np.round(np.flip(out), 2) # account for physical orientation of spectrometer
     
     def _set_temperature(self):
         self.proem.params.SensorTemperatureSetPoint.set_value(self._config["sensor_temperature_setpoint"])
         sensor_temp_status = self.proem.params.SensorTemperatureStatus.get_value().name
         if sensor_temp_status == 'Locked':
             self.logger.info("Sensor temp stabilized.")
+            self._state["sensor_temperature"] = self.proem.params.SensorTemperatureReading.get_value()
         else:         
-            self._loop.run_in_executor(None, self._check_temp_stabilized)
+            self._loop.run_in_executor(None, self._check_temp_stabilized())
  
     def _check_temp_stabilized(self):
         set_temp = self.proem.params.SensorTemperatureSetPoint.get_value()
         sensor_temp = self.proem.params.SensorTemperatureReading.get_value()
         diff = set_temp - sensor_temp
-        while abs(diff) > 0.5:
+        while abs(diff) > 0.1:
             self.logger.info(f"Sensor is cooling.\
                              Target: {set_temp} C. Current: {sensor_temp} C.")
-            set_temp = self.proem.params.SensorTemperatureSetPoint.get_value() # call again just to make sure
             sensor_temp = self.proem.params.SensorTemperatureReading.get_value()
+            self._state["sensor_temperature"] = sensor_temp
+            sleep(5)
             diff = set_temp - sensor_temp
-        
-        sensor_temp_status = self.proem.params.SensorTemperatureStatus().name
+        self.logger.info("Sensor temp stabilized.")
+        self._state["sensor_temperature"] = sensor_temp
             
     def get_sensor_temperature(self):
         return self.proem.params.SensorTemperatureReading.get_value()
@@ -206,23 +231,11 @@ class PiProem(HasMapping, HasMeasureTrigger, IsSensor, IsDaemon):
         kwds = {'n_frames': self.get_readout_count(),
                 'exposure_time': Q_(self.get_exposure_time(), 'ms')}
         timeout = kwds['n_frames'] * kwds['exposure_time'] + Q_(50, 'ms')
-        if self._state["spectrometer_mode"] == "spatial":
-            spat = self._grab_image(kwds, timeout)
-            return {"image": spat}
-        if self._state["spectrometer_mode"] == "spectral":
-            spec = self._grab_image(kwds, timeout)
-            return {"image": spec}
-
-           
-    async def update_state(self):
-        """Continually monitor and update the current daemon state."""
-        while True:
-            sensor_temp_status = self.proem.params.SensorTemperatureStatus.get_value().name
-            if sensor_temp_status == 'Locked':
-                self.logger.debug("Sensor temp stabilized.")
-            else:
-                self.logger.error("Sensor temp not stabilized. Something is wrong.")
-            await asyncio.sleep(60)
+        raw_arr = self._grab_image(kwds, timeout)
+        if kwds["n_frames"] != 1:
+            return {"image": np.rot90(process_frames(self._state["frame_processing_method"], raw_arr), k=3)}
+        else:
+            return {"image": np.rot90(raw_arr, k=3)} #rot90 acctouns for physical rotation of camera
 
 if __name__ == "__main__":
     PiProem.main()
