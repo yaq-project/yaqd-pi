@@ -59,9 +59,9 @@ doc = """The desired range of wavelengths that is displayed on the spectral \\
          axis of the detector. Units of microns. First item in the list is \\
         the bluest color, second item is the reddest e.g. [0.360, 0.841]"""
 default = [0.36, 0.841]
- 
+
 [state]
-                	   
+
 roi.type = "proem_roi"
 roi.default = {}
 roi.doc = "The ROI."
