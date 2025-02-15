@@ -6,6 +6,11 @@
             "origin": "is-daemon",
             "type": "boolean"
         },
+        "grating_aoi": {
+            "default": 5,
+            "doc": "Angle of incident beam on grating face in deg. \\\n         Default is 5.",
+            "type": "float"
+        },
         "log_level": {
             "default": "info",
             "doc": "Set daemon log-level.",
@@ -71,6 +76,15 @@
                 "null",
                 "string"
             ]
+        },
+        "spectral_range": {
+            "default": [
+                0.36,
+                0.841
+            ],
+            "doc": "The desired range of wavelengths that is displayed on the spectral \\\n         axis of the detector. Units of microns. First item in the list is \\\n        the bluest color, second item is the reddest e.g. [0.360, 0.841]",
+            "items": "float",
+            "type": "array"
         }
     },
     "doc": "",
@@ -157,6 +171,10 @@
             "request": [],
             "response": "float"
         },
+        "get_frame_processing_method": {
+            "request": [],
+            "response": "frame_processing_method_enum"
+        },
         "get_mapping_id": {
             "doc": "Mapping ID. This integer increments every time the mapping is updated. Clients can safely check this id to verify that their cached mappings are correct, if desired.",
             "origin": "has-mapping",
@@ -221,9 +239,17 @@
             "request": [],
             "response": "float"
         },
+        "get_spectrometer_mode": {
+            "request": [],
+            "response": "spectrometer_mode_enum"
+        },
         "get_state": {
             "doc": "Get version of the running daemon",
             "origin": "is-daemon",
+            "request": [],
+            "response": "string"
+        },
+        "get_trigger_response": {
             "request": [],
             "response": "string"
         },
@@ -278,6 +304,15 @@
             ],
             "response": "null"
         },
+        "set_frame_processing_method": {
+            "request": [
+                {
+                    "name": "frame_processing_method",
+                    "type": "frame_processing_method_enum"
+                }
+            ],
+            "response": "null"
+        },
         "set_readout_count": {
             "request": [
                 {
@@ -292,6 +327,24 @@
                 {
                     "name": "roi",
                     "type": "proem_roi"
+                }
+            ],
+            "response": "null"
+        },
+        "set_spectrometer_mode": {
+            "request": [
+                {
+                    "name": "spectrometer_mode",
+                    "type": "spectrometer_mode_enum"
+                }
+            ],
+            "response": "null"
+        },
+        "set_trigger_response": {
+            "request": [
+                {
+                    "name": "trigger_response",
+                    "type": "string"
                 }
             ],
             "response": "null"
@@ -331,6 +384,11 @@
             "doc": "Camera sensor exposure time (in milliseconds).",
             "type": "float"
         },
+        "frame_processing_method": {
+            "default": "average",
+            "doc": "Choose to average or sum frames in multi-frame acquisition.",
+            "type": "frame_processing_method_enum"
+        },
         "readout_count": {
             "default": 1,
             "doc": "Number of frames to grab in the acquisition.",
@@ -340,6 +398,15 @@
             "default": {},
             "doc": "The ROI.",
             "type": "proem_roi"
+        },
+        "spectrometer_mode": {
+            "default": "spatial",
+            "type": "spectrometer_mode_enum"
+        },
+        "trigger_response": {
+            "default": "NoResponse",
+            "doc": "Toggle camera's trigger response.",
+            "type": "string"
         }
     },
     "traits": [
@@ -373,7 +440,7 @@
                 },
                 {
                     "default": 0,
-                    "name": "top",
+                    "name": "bottom",
                     "type": "int"
                 },
                 {
@@ -384,6 +451,22 @@
             ],
             "name": "proem_roi",
             "type": "record"
+        },
+        {
+            "name": "spectrometer_mode_enum",
+            "symbols": [
+                "spatial",
+                "spectral"
+            ],
+            "type": "enum"
+        },
+        {
+            "name": "frame_processing_method_enum",
+            "symbols": [
+                "average",
+                "sum"
+            ],
+            "type": "enum"
         },
         {
             "fields": [
