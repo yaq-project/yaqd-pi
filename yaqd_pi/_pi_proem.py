@@ -3,9 +3,9 @@ __all__ = ["PiProem"]
 import numpy as np
 
 from yaqd_core import HasMapping, HasMeasureTrigger, IsSensor, IsDaemon
-from instrumental.drivers.cameras.picam import sdk, PicamEnums, list_instruments, PicamError
-from instrumental import Q_
-from scipy.interpolate import interp1d
+from instrumental.drivers.cameras.picam import sdk, PicamEnums, list_instruments, PicamError  # type: ignore
+from instrumental import Q_  # type: ignore
+from scipy.interpolate import interp1d  # type: ignore
 from time import sleep
 
 
