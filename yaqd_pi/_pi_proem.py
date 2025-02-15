@@ -312,6 +312,5 @@ class PiProem(HasMapping, HasMeasureTrigger, IsSensor, IsDaemon):
             }  # rot90 accounts for physical rotation of camera
 
 
-
 if __name__ == "__main__":
     PiProem.main()
