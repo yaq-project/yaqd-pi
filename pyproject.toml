@@ -5,26 +5,30 @@ build-backend = "flit_core.buildapi"
 [tool.flit.metadata]
 module = "yaqd_pi"
 dist-name = "yaqd-pi"
-author = "Jason Scheeler"
-author-email = "jscheeler@wisc.edu"
+author = "yaq developers"
 home-page = "https://yaq.fyi"
 description-file = "README.md"
 requires-python = ">=3.7"
-requires = ["yaqd-core>=2020.06.3"]
+requires = [
+    "yaqd-core>=2021.2.0",
+    "instrumental<=0.7",
+    "scipy"
+]
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)",
     "Natural Language :: English",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.7",
-    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering",
 ]
 
 [tool.flit.metadata.urls]
-Source = "https://gitlab.com/yaq/yaqd-pi"
-Issues = "https://gitlab.com/yaq/yaqd-pi/issues"
+Source = "https://github.com/yaq-project/yaqd-pi"
+Issues = "https://github.com/yaq-project/yaqd-pi/issues"
 
 [tool.flit.metadata.requires-extra]
 dev = ["black", "pre-commit"]
@@ -35,7 +39,7 @@ yaqd-pi-proem = "yaqd_pi._pi_proem:PiProem.main"
 
 [tool.black]
 line-length = 99
-target-version = ['py37', 'py38']
+target-version = ['py311', 'py312']
 include = '\.pyi?$'
 exclude = '''
 /(
