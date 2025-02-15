@@ -10,9 +10,9 @@ home-page = "https://yaq.fyi"
 description-file = "README.md"
 requires-python = ">=3.7"
 requires = [
-	"yaqd-core>=2021.2.0",
-  "instrumental",
-  "scipy"
+    "yaqd-core>=2021.2.0",
+    "instrumental",
+    "scipy"
 ]
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
