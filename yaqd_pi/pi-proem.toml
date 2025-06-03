@@ -101,6 +101,15 @@ frame_processing_method.type = "frame_processing_method_enum"
 frame_processing_method.default = "average"
 frame_processing_method.doc = "Choose to average or sum frames in multi-frame acquisition."
 
+adc_quality.type = "string"
+adc_quality.default = "ElectronMultiplied"
+# adc_analog_gain.doc = """Set the natrue of pixel digitization.\\
+#                         The quality options are ElectronMultiplied, HighCapacity, HighSpeed, and LowNoise."""
+
+adc_speed.type = "float"
+adc_speed.default = 10.0
+adc_speed.doc =  "Pixel digitization speed, in MHz. Either 0.1 or 1 for LowNoise"
+
 [messages]
 
 set_roi.request = [{name="roi", type="proem_roi"}]
@@ -128,3 +137,9 @@ set_frame_processing_method.request = [{name="frame_processing_method", type="fr
 get_frame_processing_method.response = "frame_processing_method_enum"
 
 get_sensor_temperature.response = "float"
+
+set_adc_quality.request = [{name="quality", type="string"}]
+get_adc_quality.response = "string"
+
+set_adc_speed.request = [{name="speed", type="float"}]
+get_adc_speed.response = "float"

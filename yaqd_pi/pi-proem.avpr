@@ -106,6 +106,14 @@
             "request": [],
             "response": "string"
         },
+        "get_adc_quality": {
+            "request": [],
+            "response": "string"
+        },
+        "get_adc_speed": {
+            "request": [],
+            "response": "float"
+        },
         "get_channel_mappings": {
             "doc": "Defines which mapping keys apply to which channel keys. Each channel may have zero or many mappings. Mappings must broadcast into corresponding channels.",
             "origin": "has-mapping",
@@ -286,6 +294,24 @@
             ],
             "response": "null"
         },
+        "set_adc_quality": {
+            "request": [
+                {
+                    "name": "quality",
+                    "type": "string"
+                }
+            ],
+            "response": "null"
+        },
+        "set_adc_speed": {
+            "request": [
+                {
+                    "name": "speed",
+                    "type": "float"
+                }
+            ],
+            "response": "null"
+        },
         "set_em_gain": {
             "request": [
                 {
@@ -374,6 +400,15 @@
         "adc_analog_gain": {
             "default": "Low",
             "type": "string"
+        },
+        "adc_quality": {
+            "default": "ElectronMultiplied",
+            "type": "string"
+        },
+        "adc_speed": {
+            "default": 10.0,
+            "doc": "Pixel digitization speed, in MHz. Either 0.1 or 1 for LowNoise",
+            "type": "float"
         },
         "em_gain": {
             "default": 1,
