@@ -5,9 +5,10 @@ import numpy as np
 import time
 
 from yaqd_core import HasMapping, HasMeasureTrigger, IsSensor, IsDaemon
-from instrumental.drivers.cameras.picam import sdk, PicamEnums, list_instruments, PicamError
-from instrumental import Q_
-from scipy.interpolate import interp1d
+from instrumental.drivers.cameras.picam import sdk, PicamEnums, list_instruments, PicamError  # type: ignore
+from instrumental import Q_  # type: ignore
+from scipy.interpolate import interp1d  # type: ignore
+from time import sleep
 
 
 def process_frames(method, raw_arrs):
@@ -254,9 +255,9 @@ class PiProem(HasMapping, HasMeasureTrigger, IsSensor, IsDaemon):
         sensor_temp_status = self.proem.params.SensorTemperatureStatus.get_value().name
         if sensor_temp_status == "Locked":
             self.logger.info("Sensor temp stabilized.")
-            self._state[
-                "sensor_temperature"
-            ] = self.proem.params.SensorTemperatureReading.get_value()
+            self._state["sensor_temperature"] = (
+                self.proem.params.SensorTemperatureReading.get_value()
+            )
         else:
             self._loop.run_in_executor(None, self._check_temp_stabilized())
 

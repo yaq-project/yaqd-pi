@@ -2,7 +2,7 @@ ci:
   autoupdate_schedule: "monthly"
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v5.0.0
     hooks:
     -   id: trailing-whitespace
     -   id: check-toml
@@ -10,7 +10,7 @@ repos:
         args: [-b, master]
 
   - repo: https://github.com/psf/black
-    rev: 23.10.1
+    rev: 25.1.0
     hooks:
       - id: black
         name: black
@@ -19,13 +19,13 @@ repos:
         types: [python]
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.6.1
+    rev: v1.14.1
     hooks:
       - id: mypy
         exclude: ^docs/conf.py
 
-  - repo: https://gitlab.com/yaq/yaq-traits
-    rev: v2022.3.0
+  - repo: https://github.com/yaq-project/yaq-traits
+    rev: v2023.6.0
     hooks:
       - id: yaq-traits-check
       - id: yaq-traits-compose
