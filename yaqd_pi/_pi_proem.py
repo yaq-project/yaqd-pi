@@ -13,7 +13,7 @@ from time import sleep
 
 def process_frames(method, raw_arrs):
     # raw_arrs should be a 3D np array, with dim 0 being number of frames
-    if method == "average" or method == 'mean':
+    if method == "average" or method == "mean":
         proc_arrs = raw_arrs[:].mean(axis=0)
     elif method == "sum":
         proc_arrs = raw_arrs[:].sum(axis=0)
@@ -45,7 +45,9 @@ class PiProem(HasMapping, HasMeasureTrigger, IsSensor, IsDaemon):
         # create sdk.PicamCamera() object
         self.proem = deviceArray[0].create()
         # set key parameters to default values upon startup
-        self.set_roi({"left":0, "bottom":512, "width":512, "height":512, "x_binning":1, "y_binning":1})
+        self.set_roi(
+            {"left": 0, "bottom": 512, "width": 512, "height": 512, "x_binning": 1, "y_binning": 1}
+        )
         self.set_spectrometer_mode("spatial")
         # make the static wavelengths to pixel mapping an attribute of the daemon; don't update self._mappings as this changes between spatial and spectral
         self._mappings["wavelengths"] = self._gen_mapping()
@@ -73,25 +75,46 @@ class PiProem(HasMapping, HasMeasureTrigger, IsSensor, IsDaemon):
             print(
                 """You're in spectral mode and you wish to bin spectral axis, or have not changed x_binning from spatial mode yet.
                      Consider doing set_roi() and changing x_binning=1.
-                     ***leaving roi unchanged.*** """)
+                     ***leaving roi unchanged.*** """
+            )
         elif roi["bottom"] < roi["height"]:
-            print("""The height of ROI requested is too large for where beginning bottom pixel is indicated.
+            print(
+                """The height of ROI requested is too large for where beginning bottom pixel is indicated.
                      This would create a mapping with negative pixels and will not allow for image capture.
-                     ***Leaving roi unchanged.*** """)
+                     ***Leaving roi unchanged.*** """
+            )
         else:
-            self.proem.set_roi(x=512-roi["bottom"], y=roi["left"],
-                               width=roi["height"], height=roi["width"],
-                               x_binning=roi["y_binning"],
-                               y_binning=roi["x_binning"])
-        
+            self.proem.set_roi(
+                x=512 - roi["bottom"],
+                y=roi["left"],
+                width=roi["height"],
+                height=roi["width"],
+                x_binning=roi["y_binning"],
+                y_binning=roi["x_binning"],
+            )
+
             pld_roi = self.proem.params.Rois.get_value()[0]
-            self._state["roi"] = {"left":pld_roi.y, "width": pld_roi.height,
-                                  "bottom":512-pld_roi.x, "height":pld_roi.width,
-                                  "x_binning":pld_roi.y_binning,
-                                  "y_binning":pld_roi.x_binning}
-            
-            self._mappings["y_index"] = np.arange(self._state["roi"]["bottom"] - (self._state["roi"]["height"] // self._state["roi"]["y_binning"]), self._state["roi"]["bottom"], dtype="i2")[:, None]
-            self._mappings["x_index"] = np.arange(self._state["roi"]["left"], self._state["roi"]["left"] + (self._state["roi"]["width"] // self._state["roi"]["x_binning"]), dtype="i2")[None, :]
+            self._state["roi"] = {
+                "left": pld_roi.y,
+                "width": pld_roi.height,
+                "bottom": 512 - pld_roi.x,
+                "height": pld_roi.width,
+                "x_binning": pld_roi.y_binning,
+                "y_binning": pld_roi.x_binning,
+            }
+
+            self._mappings["y_index"] = np.arange(
+                self._state["roi"]["bottom"]
+                - (self._state["roi"]["height"] // self._state["roi"]["y_binning"]),
+                self._state["roi"]["bottom"],
+                dtype="i2",
+            )[:, None]
+            self._mappings["x_index"] = np.arange(
+                self._state["roi"]["left"],
+                self._state["roi"]["left"]
+                + (self._state["roi"]["width"] // self._state["roi"]["x_binning"]),
+                dtype="i2",
+            )[None, :]
             self._mappings["wavelengths"] = self._gen_mapping()[None, :]
 
             self._channel_shapes = {
@@ -131,22 +154,22 @@ class PiProem(HasMapping, HasMeasureTrigger, IsSensor, IsDaemon):
         self._state["adc_analog_gain"] = self.proem.params.AdcAnalogGain.get_value().name
 
     def get_adc_analog_gain(self):
-        return self._state["adc_analog_gain"] 
-    
+        return self._state["adc_analog_gain"]
+
     def set_adc_quality(self, quality: str):
         self.proem.params.AdcQuality.set_value(getattr(PicamEnums.AdcQuality, quality))
         self._state["adc_quality"] = self.proem.params.AdcQuality.get_value().name
-        
+
     def get_adc_quality(self):
-        return self._state["adc_quality"] 
-    
+        return self._state["adc_quality"]
+
     def set_adc_speed(self, speed: float):
         self.proem.params.AdcSpeed.set_value(speed)
         self._state["adc_speed"] = self.proem.params.AdcSpeed.get_value()
-        
+
     def get_adc_speed(self):
-        return self._state["adc_speed"] 
-    
+        return self._state["adc_speed"]
+
     def set_spectrometer_mode(self, mode: str):
         if mode == "spatial":
             # when going to spatial mode from spectral, there's not a good way to have the roi
@@ -245,9 +268,11 @@ class PiProem(HasMapping, HasMeasureTrigger, IsSensor, IsDaemon):
         num_pixels = np.round(spec_divided[0], 0)
         pixels = np.arange(num_pixels)
         out = g(pixels) * 1000
-        out = out[self._mappings["x_index"][0][:]] # keep horizontal mappings equal size so wt5 file doesn't get confused
-        return np.round(out, 2) # account for physical orientation of camera
-    
+        out = out[
+            self._mappings["x_index"][0][:]
+        ]  # keep horizontal mappings equal size so wt5 file doesn't get confused
+        return np.round(out, 2)  # account for physical orientation of camera
+
     def _set_temperature(self):
         self.proem.params.SensorTemperatureSetPoint.set_value(
             self._config["sensor_temperature_setpoint"]
@@ -282,12 +307,12 @@ class PiProem(HasMapping, HasMeasureTrigger, IsSensor, IsDaemon):
 
     def close(self):
         self.proem.close()
-    
-    async def _grab_image(self, kwds, timeout): #timeout in ms
+
+    async def _grab_image(self, kwds, timeout):  # timeout in ms
         print("about to start capture")
         self.proem.start_capture(**kwds)
         print("capture started")
-        # putting this sleep in here is probably not the ideal way to fix the timeout problem -- having constant communication between bluesky, the daemon, instrumental, and 
+        # putting this sleep in here is probably not the ideal way to fix the timeout problem -- having constant communication between bluesky, the daemon, instrumental, and
         # picam would be better which is what I tried at first but it's just too complicated and there are many things happening under the hood (for picam) that I don't understand
         # well enough to get the code to work the ideal way. The sleep function basically is just saying "don't try to grab the data until the exposure is over"
         await asyncio.sleep(timeout.magnitude / 1000)
@@ -295,7 +320,7 @@ class PiProem(HasMapping, HasMeasureTrigger, IsSensor, IsDaemon):
             print("about to get captured image")
             img = self.proem.get_captured_image()
         except Exception as e:
-            print("yaqc error: ",  e)
+            print("yaqc error: ", e)
             await asyncio.sleep(0.020)
         if not isinstance(img, np.ndarray):
             return np.asarray(img)
@@ -303,16 +328,25 @@ class PiProem(HasMapping, HasMeasureTrigger, IsSensor, IsDaemon):
             return img
 
     async def _measure(self):
-        kwds = {'n_frames': self.get_readout_count(),
-                'exposure_time': Q_(self.get_exposure_time(), 'ms')}
-        timeout = kwds['n_frames'] * kwds['exposure_time'] + Q_(500, 'ms')
+        kwds = {
+            "n_frames": self.get_readout_count(),
+            "exposure_time": Q_(self.get_exposure_time(), "ms"),
+        }
+        timeout = kwds["n_frames"] * kwds["exposure_time"] + Q_(500, "ms")
         raw_arr = await self._grab_image(kwds, timeout)
         if kwds["n_frames"] != 1:
             print("about to return image. raw arr has shape: ", raw_arr.shape)
-            return {"image": np.rot90(process_frames(self._state["frame_processing_method"], raw_arr), 1)}
+            return {
+                "image": np.rot90(
+                    process_frames(self._state["frame_processing_method"], raw_arr), 1
+                )
+            }
         else:
             print("about to return image. raw arr has shape: ", raw_arr.shape)
-            return {"image": np.rot90(raw_arr, 1)} #np.rot90 acctouns for physical rotation of camera
+            return {
+                "image": np.rot90(raw_arr, 1)
+            }  # np.rot90 acctouns for physical rotation of camera
+
 
 if __name__ == "__main__":
     PiProem.main()
