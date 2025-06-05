@@ -29,6 +29,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
 
         if config.get("emulate"):
             from instrumental.drivers.cameras.picam import sdk  # type: ignore
+
             self.logger.info("Starting Emulated camera")
             sdk.connect_demo_camera(PicamEnums.Model.ProEMHS512BExcelon, "demo")
 
@@ -42,8 +43,12 @@ class PiProem(HasMapping, HasMeasureTrigger):
         # somehow instrumental overrides our logger...
         # I need to import these only after our loggers are started
         from instrumental.drivers.cameras.picam import (
-            list_instruments, PicamError, PicamCamera, PicamEnums
+            list_instruments,
+            PicamError,
+            PicamCamera,
+            PicamEnums,
         )  # type: ignore
+
         self.PicamEnums = PicamEnums
 
         deviceArray = list_instruments()
@@ -51,7 +56,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
             raise PicamError("No devices found.")
 
         # create PicamCamera() object
-        self.proem:PicamCamera = deviceArray[0].create()
+        self.proem: PicamCamera = deviceArray[0].create()
         # set key parameters to default values upon startup
         self.set_roi(
             {"left": 0, "bottom": 512, "width": 512, "height": 512, "x_binning": 1, "y_binning": 1}
@@ -101,7 +106,9 @@ class PiProem(HasMapping, HasMeasureTrigger):
             # register new mappings
             native = self.proem.params.Rois.get_value()[0]
             self.logger.info(f"roi_native {native}")
-            roi_native = ROI_native(native.x, native.y, native.width, native.height, native.y_binning, native.x_binning)
+            roi_native = ROI_native(
+                native.x, native.y, native.width, native.height, native.y_binning, native.x_binning
+            )
             self.logger.info(f"roi_native {roi_native}")
             self._state["roi"] = native_to_ui(roi_native)._asdict()
 
@@ -126,7 +133,6 @@ class PiProem(HasMapping, HasMeasureTrigger):
                 ),
             }
             # channel indexing is (y_index, x_index)
-
 
     def get_roi(self) -> dict:
         roi = ROI_native(**self.proem.params.Rois.get_value()[0])
@@ -311,7 +317,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
     def close(self):
         self.proem.close()
 
-    async def _grab_image(self, wait:float=0., **kwargs):  # timeout in ms
+    async def _grab_image(self, wait: float = 0.0, **kwargs):  # timeout in ms
         """initialize capture, and return image when finished
         Parameters
         ----------
@@ -347,9 +353,11 @@ class PiProem(HasMapping, HasMeasureTrigger):
 
     async def _measure(self):
         n_frames = self.get_readout_count()
-        exposure_time = self.get_exposure_time() # ms
-        wait = n_frames * exposure_time  + 500  # ms
-        raw_arr = await self._grab_image(wait / 1e3, n_frames=n_frames, exposure_time=exposure_time)
+        exposure_time = self.get_exposure_time()  # ms
+        wait = n_frames * exposure_time + 500  # ms
+        raw_arr = await self._grab_image(
+            wait / 1e3, n_frames=n_frames, exposure_time=exposure_time
+        )
         if n_frames != 1:
             self.logger.debug("about to return image. raw arr has shape: ", raw_arr.shape)
             return {
