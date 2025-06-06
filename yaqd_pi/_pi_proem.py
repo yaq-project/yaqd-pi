@@ -5,6 +5,7 @@ import numpy as np
 from time import sleep
 
 from yaqd_core import HasMapping, HasMeasureTrigger
+from instrumental import Q_
 
 from scipy.interpolate import interp1d  # type: ignore
 from ._roi import ROI_native, ROI_UI, ui_to_native, native_to_ui
@@ -50,9 +51,11 @@ class PiProem(HasMapping, HasMeasureTrigger):
         )  # type: ignore
 
         self.PicamEnums = PicamEnums
+        self.PicamError = PicamError
 
         # open camera
         deviceArray = list_instruments()
+        self.logger.info(deviceArray)
         if len(deviceArray) == 0:
             raise PicamError("No devices found.")
         self.proem: PicamCamera = deviceArray[0].create()
@@ -62,6 +65,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
         self.set_spectrometer_mode("spatial")
         self._mappings["wavelengths"] = self._gen_mapping()
         # initialize with default parameters
+        # TODO: use proem.params.parameters to get all parameter objects
         self.set_roi(ROI_UI()._asdict())
         self.set_em_gain(1)
         self.set_exposure_time(33)
@@ -69,15 +73,110 @@ class PiProem(HasMapping, HasMeasureTrigger):
         self.set_frame_processing_method("average")
         self._set_temperature()
 
+
+    async def _measure(self):
+        n_frames = self.get_readout_count()
+        wait = min(self.get_exposure_time(), 500) # ms
+        self._dev.StartAcquisition()
+        readouts = []
+        running = True
+        while running:
+            try:
+                available_data, status = self.proem._dev.WaitForAcquisitionUpdate(wait)
+            except self.PicamError as e:
+                if e.code == self.PicamEnums.Error.TimeOutOccurred:
+                    await asyncio.sleep(0)
+                    continue
+                else:
+                    self.logger.error(e)
+                    self._dev.StopAcquisition()
+                    raise e
+            else:
+                running = status.running
+                if available_data.readout_count > 0:
+                    readouts.extend(self._extract_available_data(available_data, copy=True))
+
+
+        self.logger.info(f"about to start capture")
+        raw_arr = await self._grab_image(wait / 1e3)
+        if n_frames != 1:
+            self.logger.debug("about to return image. raw arr has shape: ", raw_arr.shape)
+            return {
+                "image": np.rot90(
+                    process_frames(self._state["frame_processing_method"], raw_arr), 1
+                )
+            }
+        else:
+            self.logger.debug("about to return image. raw arr has shape: ", raw_arr.shape)
+            return {"image": np.rot90(raw_arr, 1)}  # np.rot90 acctouns for physical rotation of camera
+
+    async def _grab_image(self, wait: float = 0.0, **kwargs):  # timeout in ms
+        """initialize capture, and return image when finished
+        Parameters
+        ----------
+        wait: float
+            duration to wait before asking for image (seconds)
+
+        kwargs
+        ------
+        additional kwargs are passed to proem.get_captured_image (consult API)
+
+        Returns
+        -------
+        img : np.array
+            image
+        """
+        self.logger.info(f"about to start capture, kwargs: {list(kwargs.items())}")
+        self._dev.StartAcquisition()
+
+        # self.proem.start_capture(**kwargs)
+        self.logger.info("capture started")
+        # putting this sleep in here is probably not the ideal way to fix the timeout problem -- having constant communication between bluesky, the daemon, instrumental, and
+        # picam would be better which is what I tried at first but it's just too complicated and there are many things happening under the hood (for picam) that I don't understand
+        # well enough to get the code to work the ideal way. The sleep function basically is just saying "don't try to grab the data until the exposure is over"
+        await asyncio.sleep(wait / 1000)
+        try:
+            self.logger.info("about to get captured image")
+            img = self.proem.get_captured_image()
+        except Exception as e:
+            self.logger.error("yaqc error: ", e)
+            await asyncio.sleep(0.020)
+        if not isinstance(img, np.ndarray):
+            return np.asarray(img)
+        else:
+            return img
+
+    def _gen_mapping(self):
+        "get map corresponding to static aoi and wavelength range."
+        # define input paramaters
+        mm_per_pixel = self.proem.params.PixelHeight.get_value() / 1e3
+        v = 200  # g/mm; grating groove spacing
+        a = (v * 10**-3) ** -1  # um/g
+        aoi = np.radians(self._config["grating_aoi"])
+        ws = np.linspace(
+            self._config["spectral_range"][0], self._config["spectral_range"][1], 2048
+        )  # um
+        f = 85  # mm; focal length of focusing lens
+        n = 1.6  # rough grating index of refraction
+        # calculate output angles
+        aods = np.arcsin(n * np.sin(aoi) - (ws / a))
+        # convert angle to space
+        xs = f * np.tan(aods)
+        rel_xs = np.abs(xs - xs.min())  # start from 0 and count up in length
+        # map spatially correlated wavelengths onto detector by interpolating
+        spec_divided = rel_xs / mm_per_pixel
+        g = interp1d(spec_divided, ws)
+        num_pixels = np.round(spec_divided[0], 0)
+        pixels = np.arange(num_pixels)
+        out = g(pixels) * 1000
+        out = out[
+            self._mappings["x_index"][0][:]
+        ]  # keep horizontal mappings equal size so wt5 file doesn't get confused
+        return np.round(out, 2)  # account for physical orientation of camera
+
+    # --- properties ------------------------------------------------------------------------------
+
     def set_roi(self, roi: ROI_UI):
-        # TODO: remove the rotation from hardcode
-        # because the camera is rotated 90 deg, all of the roi params will be flipped under the hood
-        # so the output arrays and shapes make sense to the user as the camera is currently placed.
-        # i.e. The goal is to have a new user never know the camera is rotated.
-        # so, left <--> bottom
-        # top <--> left
-        # width <--> height
-        # x_binning <--> y_binning
         roi = ROI_UI(**roi)
 
         if roi.height % roi.y_binning != 0 or roi.width % roi.x_binning != 0:
@@ -251,34 +350,6 @@ class PiProem(HasMapping, HasMeasureTrigger):
     def get_frame_processing_method(self):
         return self._state["frame_processing_method"]
 
-    def _gen_mapping(self):
-        "get map corresponding to static aoi and wavelength range."
-        # define input paramaters
-        mm_per_pixel = 0.016
-        v = 200  # g/mm; grating groove spacing
-        a = (v * 10**-3) ** -1  # um/g
-        aoi = np.radians(self._config["grating_aoi"])
-        ws = np.linspace(
-            self._config["spectral_range"][0], self._config["spectral_range"][1], 2048
-        )  # um
-        f = 85  # mm; focal length of focusing lens
-        n = 1.6  # rough grating index of refraction
-        # calculate output angles
-        aods = np.arcsin(n * np.sin(aoi) - (ws / a))
-        # convert angle to space
-        xs = f * np.tan(aods)
-        rel_xs = np.abs(xs - xs.min())  # start from 0 and count up in length
-        # map spatially correlated wavelengths onto detector by interpolating
-        spec_divided = rel_xs / mm_per_pixel
-        g = interp1d(spec_divided, ws)
-        num_pixels = np.round(spec_divided[0], 0)
-        pixels = np.arange(num_pixels)
-        out = g(pixels) * 1000
-        out = out[
-            self._mappings["x_index"][0][:]
-        ]  # keep horizontal mappings equal size so wt5 file doesn't get confused
-        return np.round(out, 2)  # account for physical orientation of camera
-
     def _set_temperature(self):
         self.proem.params.SensorTemperatureSetPoint.set_value(
             self._config["sensor_temperature_setpoint"]
@@ -313,60 +384,6 @@ class PiProem(HasMapping, HasMeasureTrigger):
 
     def close(self):
         self.proem.close()
-
-    async def _grab_image(self, wait: float = 0.0, **kwargs):  # timeout in ms
-        """initialize capture, and return image when finished
-        Parameters
-        ----------
-        wait: float
-            duration to wait before asking for image (seconds)
-
-        kwargs
-        ------
-        additional kwargs are passed to proem.get_captured_image (consult API)
-
-        Returns
-        -------
-        img : np.array
-            image
-        """
-        self.logger.debug("about to start capture")
-        self.proem.start_capture(**kwargs)
-        self.logger.debug("capture started")
-        # putting this sleep in here is probably not the ideal way to fix the timeout problem -- having constant communication between bluesky, the daemon, instrumental, and
-        # picam would be better which is what I tried at first but it's just too complicated and there are many things happening under the hood (for picam) that I don't understand
-        # well enough to get the code to work the ideal way. The sleep function basically is just saying "don't try to grab the data until the exposure is over"
-        await asyncio.sleep(wait / 1000)
-        try:
-            self.logger.debug("about to get captured image")
-            img = self.proem.get_captured_image()
-        except Exception as e:
-            self.logger.error("yaqc error: ", e)
-            await asyncio.sleep(0.020)
-        if not isinstance(img, np.ndarray):
-            return np.asarray(img)
-        else:
-            return img
-
-    async def _measure(self):
-        n_frames = self.get_readout_count()
-        exposure_time = self.get_exposure_time()  # ms
-        wait = n_frames * exposure_time + 500  # ms
-        raw_arr = await self._grab_image(
-            wait / 1e3, n_frames=n_frames, exposure_time=exposure_time
-        )
-        if n_frames != 1:
-            self.logger.debug("about to return image. raw arr has shape: ", raw_arr.shape)
-            return {
-                "image": np.rot90(
-                    process_frames(self._state["frame_processing_method"], raw_arr), 1
-                )
-            }
-        else:
-            self.logger.debug("about to return image. raw arr has shape: ", raw_arr.shape)
-            return {
-                "image": np.rot90(raw_arr, 1)
-            }  # np.rot90 acctouns for physical rotation of camera
 
 
 if __name__ == "__main__":
