@@ -73,10 +73,9 @@ class PiProem(HasMapping, HasMeasureTrigger):
         self.set_frame_processing_method("average")
         self._set_temperature()
 
-
     async def _measure(self):
         n_frames = self.get_readout_count()
-        wait = min(self.get_exposure_time(), 500) # ms
+        wait = min(self.get_exposure_time(), 500)  # ms
         self._dev.StartAcquisition()
         readouts = []
         running = True
@@ -96,7 +95,6 @@ class PiProem(HasMapping, HasMeasureTrigger):
                 if available_data.readout_count > 0:
                     readouts.extend(self._extract_available_data(available_data, copy=True))
 
-
         self.logger.info(f"about to start capture")
         raw_arr = await self._grab_image(wait / 1e3)
         if n_frames != 1:
@@ -108,7 +106,9 @@ class PiProem(HasMapping, HasMeasureTrigger):
             }
         else:
             self.logger.debug("about to return image. raw arr has shape: ", raw_arr.shape)
-            return {"image": np.rot90(raw_arr, 1)}  # np.rot90 acctouns for physical rotation of camera
+            return {
+                "image": np.rot90(raw_arr, 1)
+            }  # np.rot90 acctouns for physical rotation of camera
 
     async def _grab_image(self, wait: float = 0.0, **kwargs):  # timeout in ms
         """initialize capture, and return image when finished

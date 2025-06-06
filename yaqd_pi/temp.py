@@ -1,4 +1,3 @@
-
 from instrumental.drivers.cameras.picam import PicamEnums, list_instruments, PicamError  # type: ignore
 from time import sleep
 import numpy as np
@@ -20,6 +19,7 @@ img = proem.get_captured_image()
 # img = np.asarray(img)
 
 import matplotlib.pyplot as plt
+
 art = plt.matshow(img)
 plt.colorbar(art)
 
