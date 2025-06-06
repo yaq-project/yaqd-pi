@@ -29,7 +29,6 @@ class PiProem(HasMapping, HasMeasureTrigger):
 
         if config.get("emulate"):
             from instrumental.drivers.cameras.picam import sdk  # type: ignore
-
             self.logger.info("Starting Emulated camera")
             sdk.connect_demo_camera(PicamEnums.Model.ProEMHS512BExcelon, "demo")
 
@@ -41,7 +40,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
         self._mapping_units = {"y_index": "None", "x_index": "None", "wavelengths": "nm"}
 
         # somehow instrumental overrides our logger...
-        # I need to import these only after our loggers are started
+        # I need to import these only after our daemon logger is initiated
         from instrumental.drivers.cameras.picam import (
             list_instruments,
             PicamError,
@@ -51,28 +50,25 @@ class PiProem(HasMapping, HasMeasureTrigger):
 
         self.PicamEnums = PicamEnums
 
+        # open camera
         deviceArray = list_instruments()
         if len(deviceArray) == 0:
             raise PicamError("No devices found.")
-
-        # create PicamCamera() object
         self.proem: PicamCamera = deviceArray[0].create()
-        # set key parameters to default values upon startup
-        self.set_roi(
-            {"left": 0, "bottom": 512, "width": 512, "height": 512, "x_binning": 1, "y_binning": 1}
-        )
-        self.logger.info("set spatial")
+
+        # make the static wavelengths to pixel mapping an attribute of the daemon; 
+        # don't update self._mappings as this changes between spatial and spectral
         self.set_spectrometer_mode("spatial")
-        # make the static wavelengths to pixel mapping an attribute of the daemon; don't update self._mappings as this changes between spatial and spectral
         self._mappings["wavelengths"] = self._gen_mapping()
-        # setting convenient initials
+        # initialize with default parameters
+        self.set_roi(ROI_UI()._asdict())
         self.set_em_gain(1)
         self.set_exposure_time(33)
         self.set_readout_count(1)
         self.set_frame_processing_method("average")
         self._set_temperature()
 
-    def set_roi(self, roi: dict):
+    def set_roi(self, roi: ROI_UI):
         # TODO: remove the rotation from hardcode
         # because the camera is rotated 90 deg, all of the roi params will be flipped under the hood
         # so the output arrays and shapes make sense to the user as the camera is currently placed.

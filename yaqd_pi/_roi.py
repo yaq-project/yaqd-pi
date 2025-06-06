@@ -1,12 +1,24 @@
+"""
+rois are expressed in a transformed coordinate system (x -> y, y -> x)
+so the end user does not deal with the camera rotation
+this issue should be superceded with mappings...
+"""
+# TODO: use mappings to encode x,y; transposes are okay...
+
+
 from collections import namedtuple
 
 
-# rois are expressed in a transformed coordinate system (x -> y, y -> x)
-# so the end user does not deal with the camera rotation
-# this issue should be superceded with mappings...
-ROI_native = namedtuple("ROI_native", ["x", "y", "width", "height", "y_binning", "x_binning"])
+ROI_native = namedtuple(
+    "ROI_native", 
+    ["x", "y", "width", "height", "y_binning", "x_binning"], 
+)
 
-ROI_UI = namedtuple("ROI_UI", ["bottom", "left", "width", "height", "y_binning", "x_binning"])
+ROI_UI = namedtuple(
+    "ROI_UI",
+    ["bottom", "left", "width", "height", "y_binning", "x_binning"],
+    defaults=[512, 0, 512, 512, 1, 1]
+)
 
 
 def ui_to_native(roi: ROI_UI) -> ROI_native:
