@@ -29,6 +29,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
 
         if config.get("emulate"):
             from instrumental.drivers.cameras.picam import sdk  # type: ignore
+
             self.logger.info("Starting Emulated camera")
             sdk.connect_demo_camera(PicamEnums.Model.ProEMHS512BExcelon, "demo")
 
@@ -56,7 +57,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
             raise PicamError("No devices found.")
         self.proem: PicamCamera = deviceArray[0].create()
 
-        # make the static wavelengths to pixel mapping an attribute of the daemon; 
+        # make the static wavelengths to pixel mapping an attribute of the daemon;
         # don't update self._mappings as this changes between spatial and spectral
         self.set_spectrometer_mode("spatial")
         self._mappings["wavelengths"] = self._gen_mapping()
