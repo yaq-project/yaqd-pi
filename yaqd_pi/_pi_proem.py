@@ -11,17 +11,6 @@ from scipy.interpolate import interp1d  # type: ignore
 from ._roi import ROI_native, ROI_UI, ui_to_native, native_to_ui
 
 
-def process_frames(method, raw_arrs):
-    # raw_arrs should be a 3D np array, with dim 0 being number of frames
-    if method == "average" or method == "mean":
-        proc_arrs = raw_arrs[:].mean(axis=0)
-    elif method == "sum":
-        proc_arrs = raw_arrs[:].sum(axis=0)
-    else:
-        raise KeyError("sample processing method not recognized")
-    return proc_arrs
-
-
 class PiProem(HasMapping, HasMeasureTrigger):
     _kind = "pi-proem"
 
@@ -34,15 +23,16 @@ class PiProem(HasMapping, HasMeasureTrigger):
             self.logger.info("Starting Emulated camera")
             sdk.connect_demo_camera(PicamEnums.Model.ProEMHS512BExcelon, "demo")
 
-        self._channel_names = ["image"]
+        self._channel_names = ["mean"]
         # TODO: units should change depending on sum or average
-        self._channel_units = {"image": "counts"}
+        self._channel_units = {"mean": "counts"}
 
-        self._channel_mappings = {"image": ["y_index", "x_index", "wavelengths"]}
+        self._channel_mappings = {"mean": ["y_index", "x_index", "wavelengths"]}
         self._mapping_units = {"y_index": "None", "x_index": "None", "wavelengths": "nm"}
 
         # somehow instrumental overrides our logger...
         # I need to import these only after our daemon logger is initiated
+        # DDK 2025-06-05
         from instrumental.drivers.cameras.picam import (
             list_instruments,
             PicamError,
@@ -55,10 +45,10 @@ class PiProem(HasMapping, HasMeasureTrigger):
 
         # open camera
         deviceArray = list_instruments()
-        self.logger.info(deviceArray)
         if len(deviceArray) == 0:
             raise PicamError("No devices found.")
         self.proem: PicamCamera = deviceArray[0].create()
+        self.logger.debug(f"parameters: {[k for k in self.proem.params.parameters.keys()]}")
 
         # make the static wavelengths to pixel mapping an attribute of the daemon;
         # don't update self._mappings as this changes between spatial and spectral
@@ -70,81 +60,33 @@ class PiProem(HasMapping, HasMeasureTrigger):
         self.set_em_gain(1)
         self.set_exposure_time(33)
         self.set_readout_count(1)
-        self.set_frame_processing_method("average")
         self._set_temperature()
 
     async def _measure(self):
-        n_frames = self.get_readout_count()
-        wait = min(self.get_exposure_time(), 500)  # ms
-        self._dev.StartAcquisition()
-        readouts = []
+        readouts = []  # readouts[readout][readout_frame][frame roi]
         running = True
+        expected_readouts = self.get_readout_count()
+        wait = min(self.get_exposure_time(), 50)  # ms
+        self.proem._dev.StartAcquisition()
         while running:
             try:
+                # wait is blocking, so use short waits and ignore timeouts
                 available_data, status = self.proem._dev.WaitForAcquisitionUpdate(wait)
             except self.PicamError as e:
                 if e.code == self.PicamEnums.Error.TimeOutOccurred:
                     await asyncio.sleep(0)
-                    continue
                 else:
+                    self.proem._dev.StopAcquisition()
                     self.logger.error(e)
-                    self._dev.StopAcquisition()
                     raise e
             else:
                 running = status.running
+                self.logger.debug(f"running {running}, readouts {available_data.readout_count}")
                 if available_data.readout_count > 0:
-                    readouts.extend(self._extract_available_data(available_data, copy=True))
-
-        self.logger.info(f"about to start capture")
-        raw_arr = await self._grab_image(wait / 1e3)
-        if n_frames != 1:
-            self.logger.debug("about to return image. raw arr has shape: ", raw_arr.shape)
-            return {
-                "image": np.rot90(
-                    process_frames(self._state["frame_processing_method"], raw_arr), 1
-                )
-            }
-        else:
-            self.logger.debug("about to return image. raw arr has shape: ", raw_arr.shape)
-            return {
-                "image": np.rot90(raw_arr, 1)
-            }  # np.rot90 acctouns for physical rotation of camera
-
-    async def _grab_image(self, wait: float = 0.0, **kwargs):  # timeout in ms
-        """initialize capture, and return image when finished
-        Parameters
-        ----------
-        wait: float
-            duration to wait before asking for image (seconds)
-
-        kwargs
-        ------
-        additional kwargs are passed to proem.get_captured_image (consult API)
-
-        Returns
-        -------
-        img : np.array
-            image
-        """
-        self.logger.info(f"about to start capture, kwargs: {list(kwargs.items())}")
-        self._dev.StartAcquisition()
-
-        # self.proem.start_capture(**kwargs)
-        self.logger.info("capture started")
-        # putting this sleep in here is probably not the ideal way to fix the timeout problem -- having constant communication between bluesky, the daemon, instrumental, and
-        # picam would be better which is what I tried at first but it's just too complicated and there are many things happening under the hood (for picam) that I don't understand
-        # well enough to get the code to work the ideal way. The sleep function basically is just saying "don't try to grab the data until the exposure is over"
-        await asyncio.sleep(wait / 1000)
-        try:
-            self.logger.info("about to get captured image")
-            img = self.proem.get_captured_image()
-        except Exception as e:
-            self.logger.error("yaqc error: ", e)
-            await asyncio.sleep(0.020)
-        if not isinstance(img, np.ndarray):
-            return np.asarray(img)
-        else:
-            return img
+                    readouts.extend(self.proem._extract_available_data(available_data, copy=True))
+        if (actual := len(readouts)) != expected_readouts:
+            self.logger.warning(f"expected {expected_readouts} images, but got {actual}")
+        return {"mean": np.rot90(np.asarray(readouts).mean(axis=(0,1,2)), 1)}
 
     def _gen_mapping(self):
         "get map corresponding to static aoi and wavelength range."
@@ -197,7 +139,6 @@ class PiProem(HasMapping, HasMeasureTrigger):
                      ***Leaving roi unchanged.*** """
             )
         else:
-            self.logger.info("here")
             self.proem.set_roi(**ui_to_native(roi)._asdict())
             # register new mappings
             native = self.proem.params.Rois.get_value()[0]
@@ -251,6 +192,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
     def set_readout_count(self, readout_count: int):
         self.proem.params.ReadoutCount.set_value(readout_count)
         self._state["readout_count"] = self.proem.params.ReadoutCount.get_value()
+        self.proem.commit_parameters()
 
     def get_readout_count(self):
         return self._state["readout_count"]
