@@ -77,8 +77,8 @@ class PiProem(HasMapping, HasMeasureTrigger):
     async def update_state(self):
         """commit parameters when it is safe to do so"""
         while True:
-            if (not self._busy): 
-                if (not self.proem._dev.AreParametersCommitted()):
+            if not self._busy:
+                if not self.proem._dev.AreParametersCommitted():
                     self.proem.commit_parameters()
                 await asyncio.sleep(0.5)
             else:
