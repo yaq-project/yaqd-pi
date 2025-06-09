@@ -93,10 +93,6 @@ spectrometer_mode.default = "spatial"
 #                            Direct consequence is how the output image array is mapped.\\
 #                            Default is 'spatial'."""
 
-trigger_response.type = "string"
-trigger_response.default = "NoResponse"
-trigger_response.doc = "Toggle camera's trigger response."
-
 frame_processing_method.type = "frame_processing_method_enum"
 frame_processing_method.default = "average"
 frame_processing_method.doc = "Choose to average or sum frames in multi-frame acquisition."
@@ -130,12 +126,6 @@ get_adc_analog_gain.response = "string"
 set_spectrometer_mode.request = [{name="spectrometer_mode", type="spectrometer_mode_enum"}]
 get_spectrometer_mode.response = "spectrometer_mode_enum"
 
-set_trigger_response.request = [{name="trigger_response", type="string"}]
-get_trigger_response.response = "string"
-
-set_frame_processing_method.request = [{name="frame_processing_method", type="frame_processing_method_enum"}]
-get_frame_processing_method.response = "frame_processing_method_enum"
-
 get_sensor_temperature.response = "float"
 
 set_adc_quality.request = [{name="quality", type="string"}]
@@ -143,3 +133,45 @@ get_adc_quality.response = "string"
 
 set_adc_speed.request = [{name="speed", type="float"}]
 get_adc_speed.response = "float"
+
+[properties]
+
+[properties.exposure_time]
+# from state
+# exposure_time.type = "float"
+# exposure_time.default = 33.0
+# exposure_time.doc = "Camera sensor exposure time (in milliseconds)."
+setter = "set_exposure_time"
+getter = "get_exposure_time"
+limits_getter = "get_exposure_time_limits"
+control_kind = "hinted"
+type = "float"
+
+[properties.readout_count]
+setter = "set_readout_count"
+getter = "get_readout_count"
+control_kind = "hinted"
+type = "int"
+
+[properties.em_gain]
+# em_gain.type = "int"
+# em_gain.default = 1
+# em_gain.doc = """Electron multiplication factor.\\
+#                 Note: If using over 100, read manual about careful operation.\\
+#                 Default is 1."""
+setter = "set_em_gain"
+getter = "get_em_gain"
+limits_getter = "get_em_gain_limits"
+control_kind = "normal"
+type = "int"
+
+[properties.analog_gain]
+# adc_analog_gain.type = "string"
+# adc_analog_gain.default = "Low"
+# adc_analog_gain.doc = """Gain setting for output amplifier.\\
+#                         The gain options are Low, Medium, and High."""
+setter = "set_adc_analog_gain"
+getter = "get_adc_analog_gain"
+control_kind = "normal"
+type = "analog_gain_enum"  # TODO: refine type
+

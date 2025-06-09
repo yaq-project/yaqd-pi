@@ -5,7 +5,6 @@ import numpy as np
 from time import sleep
 
 from yaqd_core import HasMapping, HasMeasureTrigger
-from instrumental import Q_
 
 from scipy.interpolate import interp1d  # type: ignore
 from ._roi import ROI_native, ROI_UI, ui_to_native, native_to_ui
@@ -48,33 +47,57 @@ class PiProem(HasMapping, HasMeasureTrigger):
         if len(deviceArray) == 0:
             raise PicamError("No devices found.")
         self.proem: PicamCamera = deviceArray[0].create()
-        self.logger.debug(f"parameters: {[k for k in self.proem.params.parameters.keys()]}")
+
+        # register properties
+        self.set_exposure_time, self.get_exposure_time = self.gen_param("ExposureTime")
+        self.set_readout_count, self.get_readout_count = self.gen_param("ReadoutCount")
+        self.set_adc_analog_gain, self.get_adc_analog_gain = self.gen_param("AdcAnalogGain")
+        self.set_em_gain, self.get_em_gain = self.gen_param("AdcEMGain")
+        self.set_adc_quality, self.get_adc_quality = self.gen_param("AdcQuality")
+        self.set_adc_speed, self.get_adc_speed = self.gen_param("AdcSpeed")
+
+        # properties = [
+        #     "ExposureTime",
+        #     "AdcEMGain",
+        #     "ReadoutCount",
+        #     "AdcAnalogGain",
+        #     "AdcSpeed",
+        #     "AdcQuality",
+        # ]
+        # for prop in properties:
+        #     setattr(self, f"set_{prop}", self.gen_set_param(prop))
+        #     setattr(self, f"get_{prop}", self.get_get_param(prop))
 
         # make the static wavelengths to pixel mapping an attribute of the daemon;
         # don't update self._mappings as this changes between spatial and spectral
-        self.set_spectrometer_mode("spatial")
         self._mappings["wavelengths"] = self._gen_mapping()
         # initialize with default parameters
-        # TODO: use proem.params.parameters to get all parameter objects
         self.set_roi(ROI_UI()._asdict())
-        self.set_em_gain(1)
-        self.set_exposure_time(33)
-        self.set_readout_count(1)
         self._set_temperature()
 
     async def _measure(self):
         readouts = []  # readouts[readout][readout_frame][frame roi]
+        # having trouble grabbing multiple frames
+        # use a loop instead of cam readout count API?
+        n_frames = self.get_readout_count()
+        wait_ms = min(self.get_exposure_time() + 5, 500)  # ms
+        self._dev.StartAcquisition()
+        readouts = []
         running = True
         expected_readouts = self.get_readout_count()
         wait = min(self.get_exposure_time(), 50)  # ms
         self.proem._dev.StartAcquisition()
         while running:
+            await asyncio.sleep(wait_ms/1e3)
             try:
-                # wait is blocking, so use short waits and ignore timeouts
-                available_data, status = self.proem._dev.WaitForAcquisitionUpdate(wait)
+                available_data, status = self.proem._dev.WaitForAcquisitionUpdate(wait_ms)
             except self.PicamError as e:
+                # we cannot run blocking code waiting, so it's okay to timeout and
+                # give this a break
                 if e.code == self.PicamEnums.Error.TimeOutOccurred:
                     await asyncio.sleep(0)
+                    self.logger.debug("waiting")
+                    continue
                 else:
                     self.proem._dev.StopAcquisition()
                     self.logger.error(e)
@@ -142,13 +165,12 @@ class PiProem(HasMapping, HasMeasureTrigger):
             self.proem.set_roi(**ui_to_native(roi)._asdict())
             # register new mappings
             native = self.proem.params.Rois.get_value()[0]
-            self.logger.info(f"roi_native {native}")
             roi_native = ROI_native(
                 native.x, native.y, native.width, native.height, native.y_binning, native.x_binning
             )
-            self.logger.info(f"roi_native {roi_native}")
             self._state["roi"] = native_to_ui(roi_native)._asdict()
 
+            # TODO: better to do orientation stuff after the fact
             self._mappings["y_index"] = np.arange(
                 self._state["roi"]["bottom"]
                 - (self._state["roi"]["height"] // self._state["roi"]["y_binning"]),
@@ -175,48 +197,25 @@ class PiProem(HasMapping, HasMeasureTrigger):
         roi = ROI_native(**self.proem.params.Rois.get_value()[0])
         return native_to_ui(roi)._asdict()
 
-    def set_em_gain(self, em_gain: int):
-        self.proem.params.AdcEMGain.set_value(em_gain)
-        self._state["em_gain"] = self.proem.params.AdcEMGain.get_value()
+    # TODO: rework parameters
+    # TODO: commit_paramters
+    # use generators to write methods?
 
-    def get_em_gain(self):
-        return self._state["em_gain"]
+    def gen_param(self, param):
+        def set_parameter(self, val):
+            try:
+                self.proem.parameters[param].set_value(val)
+                self.proem.commit_parameters()
+            except self.PicamError as e:
+                self.logger.error(e)
 
-    def set_exposure_time(self, exposure_time: float):
-        self.proem.params.ExposureTime.set_value(exposure_time)
-        self._state["exposure_time"] = self.proem.params.ExposureTime.get_value()
+        def get_parameter(self):
+            return self.proem.parameters[param].get_value()
 
-    def get_exposure_time(self):
-        return self._state["exposure_time"]
+        return set_parameter, get_parameter
 
-    def set_readout_count(self, readout_count: int):
-        self.proem.params.ReadoutCount.set_value(readout_count)
-        self._state["readout_count"] = self.proem.params.ReadoutCount.get_value()
-        self.proem.commit_parameters()
-
-    def get_readout_count(self):
-        return self._state["readout_count"]
-
-    def set_adc_analog_gain(self, gain: str):
-        self.proem.params.AdcAnalogGain.set_value(getattr(self.PicamEnums.AdcAnalogGain, gain))
-        self._state["adc_analog_gain"] = self.proem.params.AdcAnalogGain.get_value().name
-
-    def get_adc_analog_gain(self):
-        return self._state["adc_analog_gain"]
-
-    def set_adc_quality(self, quality: str):
-        self.proem.params.AdcQuality.set_value(getattr(self.PicamEnums.AdcQuality, quality))
-        self._state["adc_quality"] = self.proem.params.AdcQuality.get_value().name
-
-    def get_adc_quality(self):
-        return self._state["adc_quality"]
-
-    def set_adc_speed(self, speed: float):
-        self.proem.params.AdcSpeed.set_value(speed)
-        self._state["adc_speed"] = self.proem.params.AdcSpeed.get_value()
-
-    def get_adc_speed(self):
-        return self._state["adc_speed"]
+    def get_parameters(self) -> list[str]:
+        return [p.name for p in self.proem._dev.parameters]
 
     def set_spectrometer_mode(self, mode: str):
         if mode == "spatial":
@@ -277,20 +276,6 @@ class PiProem(HasMapping, HasMeasureTrigger):
 
     def get_spectrometer_mode(self):
         return self._state["spectrometer_mode"]
-
-    def set_trigger_response(self, trigger_response: str):
-        self.proem.params.TriggerResponse.set_value(
-            getattr(self.PicamEnums.TriggerResponse, trigger_response)
-        )
-
-    def get_trigger_response(self):
-        return self.proem.params.TriggerResponse.get_value().name
-
-    def set_frame_processing_method(self, method: str):
-        self._state["frame_processing_method"] = method
-
-    def get_frame_processing_method(self):
-        return self._state["frame_processing_method"]
 
     def _set_temperature(self):
         self.proem.params.SensorTemperatureSetPoint.set_value(
