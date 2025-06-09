@@ -77,23 +77,15 @@ class PiProem(HasMapping, HasMeasureTrigger):
 
     async def _measure(self):
         readouts = []  # readouts[readout][readout_frame][frame roi]
-        # having trouble grabbing multiple frames
-        # use a loop instead of cam readout count API?
-        n_frames = self.get_readout_count()
-        wait_ms = min(self.get_exposure_time() + 5, 500)  # ms
-        self._dev.StartAcquisition()
-        readouts = []
         running = True
         expected_readouts = self.get_readout_count()
         wait = min(self.get_exposure_time(), 50)  # ms
         self.proem._dev.StartAcquisition()
         while running:
-            await asyncio.sleep(wait_ms / 1e3)
             try:
-                available_data, status = self.proem._dev.WaitForAcquisitionUpdate(wait_ms)
+                # wait is blocking, so use short waits and ignore timeouts
+                available_data, status = self.proem._dev.WaitForAcquisitionUpdate(wait)
             except self.PicamError as e:
-                # we cannot run blocking code waiting, so it's okay to timeout and
-                # give this a break
                 if e.code == self.PicamEnums.Error.TimeOutOccurred:
                     await asyncio.sleep(0)
                     self.logger.debug("waiting")
@@ -193,19 +185,26 @@ class PiProem(HasMapping, HasMeasureTrigger):
             }
             # channel indexing is (y_index, x_index)
 
+    async def update_state(self):
+        """commit parameters when it is safe to do so"""
+        while True:
+            if (not self.busy) and (not self.proem._dev.AreParametersCommitted()):
+                self.proem.commit_parameters()
+            try:
+                await asyncio.wait_for(self._not_busy_sig())
+            except asyncio.TimeoutError:
+                continue
+
     def get_roi(self) -> dict:
         roi = ROI_native(**self.proem.params.Rois.get_value()[0])
         return native_to_ui(roi)._asdict()
 
-    # TODO: rework parameters
-    # TODO: commit_paramters
-    # use generators to write methods?
-
     def gen_param(self, param):
         def set_parameter(self, val):
             try:
+                # NOTE: to apply must use commit_parameters; 
+                # update_state takes care of this
                 self.proem.parameters[param].set_value(val)
-                self.proem.commit_parameters()
             except self.PicamError as e:
                 self.logger.error(e)
 
