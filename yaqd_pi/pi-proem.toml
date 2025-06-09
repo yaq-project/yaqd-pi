@@ -62,29 +62,6 @@ default = [0.36, 0.841]
 
 [state]
 
-roi.type = "proem_roi"
-roi.default = {}
-roi.doc = "The ROI."
-
-em_gain.type = "int"
-em_gain.default = 1
-#em_gain.doc = """Electron multiplication factor.\\
-#                 Note: If using over 100, read manual about careful operation.\\
-#                 Default is 1."""
-
-exposure_time.type = "float"
-exposure_time.default = 33.0
-exposure_time.doc = "Camera sensor exposure time (in milliseconds)."
-
-readout_count.type = "int"
-readout_count.default = 1
-readout_count.doc =  "Number of frames to grab in the acquisition."
-
-adc_analog_gain.type = "string"
-adc_analog_gain.default = "Low"
-# adc_analog_gain.doc = """Gain setting for output amplifier.\\
-#                         The gain options are Low, Medium, and High."""
-
 spectrometer_mode.type = "spectrometer_mode_enum"
 spectrometer_mode.default = "spatial"
 # spectrometer_mode.doc = """Toggles what mode the spectrometer is in.\\
@@ -92,19 +69,6 @@ spectrometer_mode.default = "spatial"
 #                           'spectral' is spectral along horizontal axis.\\
 #                            Direct consequence is how the output image array is mapped.\\
 #                            Default is 'spatial'."""
-
-frame_processing_method.type = "frame_processing_method_enum"
-frame_processing_method.default = "average"
-frame_processing_method.doc = "Choose to average or sum frames in multi-frame acquisition."
-
-adc_quality.type = "string"
-adc_quality.default = "ElectronMultiplied"
-# adc_analog_gain.doc = """Set the natrue of pixel digitization.\\
-#                         The quality options are ElectronMultiplied, HighCapacity, HighSpeed, and LowNoise."""
-
-adc_speed.type = "float"
-adc_speed.default = 10.0
-adc_speed.doc =  "Pixel digitization speed, in MHz. Either 0.1 or 1 for LowNoise"
 
 [messages]
 

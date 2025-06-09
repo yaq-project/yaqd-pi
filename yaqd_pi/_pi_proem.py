@@ -23,7 +23,6 @@ class PiProem(HasMapping, HasMeasureTrigger):
             sdk.connect_demo_camera(PicamEnums.Model.ProEMHS512BExcelon, "demo")
 
         self._channel_names = ["mean"]
-        # TODO: units should change depending on sum or average
         self._channel_units = {"mean": "counts"}
 
         self._channel_mappings = {"mean": ["y_index", "x_index", "wavelengths"]}
@@ -68,12 +67,25 @@ class PiProem(HasMapping, HasMeasureTrigger):
         #     setattr(self, f"set_{prop}", self.gen_set_param(prop))
         #     setattr(self, f"get_{prop}", self.get_get_param(prop))
 
+        self.set_roi(ROI_UI()._asdict())
         # make the static wavelengths to pixel mapping an attribute of the daemon;
         # don't update self._mappings as this changes between spatial and spectral
         self._mappings["wavelengths"] = self._gen_mapping()
         # initialize with default parameters
-        self.set_roi(ROI_UI()._asdict())
         self._set_temperature()
+
+    async def update_state(self):
+        """commit parameters when it is safe to do so"""
+        while True:
+            if (not self._busy): 
+                if (not self.proem._dev.AreParametersCommitted()):
+                    self.proem.commit_parameters()
+                await asyncio.sleep(0.5)
+            else:
+                try:
+                    await asyncio.wait_for(self._not_busy_sig.wait(), 1)
+                except asyncio.TimeoutError:
+                    continue
 
     async def _measure(self):
         readouts = []  # readouts[readout][readout_frame][frame roi]
@@ -85,7 +97,8 @@ class PiProem(HasMapping, HasMeasureTrigger):
             try:
                 # wait is blocking, so use short waits and ignore timeouts
                 available_data, status = self.proem._dev.WaitForAcquisitionUpdate(wait)
-            except self.PicamError as e:
+            # except self.PicamError as e:
+            except Exception as e:
                 if e.code == self.PicamEnums.Error.TimeOutOccurred:
                     await asyncio.sleep(0)
                     self.logger.debug("waiting")
@@ -104,7 +117,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
         return {"mean": np.rot90(np.asarray(readouts).mean(axis=(0, 1, 2)), 1)}
 
     def _gen_mapping(self):
-        "get map corresponding to static aoi and wavelength range."
+        """get map corresponding to static aoi and wavelength range."""
         # define input paramaters
         mm_per_pixel = self.proem.params.PixelHeight.get_value() / 1e3
         v = 200  # g/mm; grating groove spacing
@@ -185,36 +198,29 @@ class PiProem(HasMapping, HasMeasureTrigger):
             }
             # channel indexing is (y_index, x_index)
 
-    async def update_state(self):
-        """commit parameters when it is safe to do so"""
-        while True:
-            if (not self.busy) and (not self.proem._dev.AreParametersCommitted()):
-                self.proem.commit_parameters()
-            try:
-                await asyncio.wait_for(self._not_busy_sig())
-            except asyncio.TimeoutError:
-                continue
-
     def get_roi(self) -> dict:
-        roi = ROI_native(**self.proem.params.Rois.get_value()[0])
+        _roi = self.proem.params.Rois.get_value()[0]
+        roi = ROI_native(*[getattr(_roi, k) for k in ROI_native._fields])
         return native_to_ui(roi)._asdict()
 
     def gen_param(self, param):
-        def set_parameter(self, val):
+        my_param = self.proem.params.parameters[param]
+
+        def set_parameter(val):
             try:
                 # NOTE: to apply must use commit_parameters;
                 # update_state takes care of this
-                self.proem.parameters[param].set_value(val)
+                my_param.set_value(val)
             except self.PicamError as e:
                 self.logger.error(e)
 
-        def get_parameter(self):
-            return self.proem.parameters[param].get_value()
+        def get_parameter():
+            return my_param.get_value()
 
         return set_parameter, get_parameter
 
     def get_parameters(self) -> list[str]:
-        return [p.name for p in self.proem._dev.parameters]
+        return [p for p in self.proem._dev.parameters.keys()]
 
     def set_spectrometer_mode(self, mode: str):
         if mode == "spatial":
