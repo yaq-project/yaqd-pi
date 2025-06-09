@@ -202,7 +202,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
     def gen_param(self, param):
         def set_parameter(self, val):
             try:
-                # NOTE: to apply must use commit_parameters; 
+                # NOTE: to apply must use commit_parameters;
                 # update_state takes care of this
                 self.proem.parameters[param].set_value(val)
             except self.PicamError as e:
