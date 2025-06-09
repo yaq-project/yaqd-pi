@@ -86,7 +86,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
                     readouts.extend(self.proem._extract_available_data(available_data, copy=True))
         if (actual := len(readouts)) != expected_readouts:
             self.logger.warning(f"expected {expected_readouts} images, but got {actual}")
-        return {"mean": np.rot90(np.asarray(readouts).mean(axis=(0,1,2)), 1)}
+        return {"mean": np.rot90(np.asarray(readouts).mean(axis=(0, 1, 2)), 1)}
 
     def _gen_mapping(self):
         "get map corresponding to static aoi and wavelength range."

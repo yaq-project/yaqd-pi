@@ -1,10 +1,9 @@
-
 from instrumental.drivers.cameras.picam import PicamEnums, PicamCamera, list_instruments, PicamError  # type: ignore
 from time import sleep
 import numpy as np
 
 deviceArray = list_instruments()
-proem:PicamCamera = deviceArray[0].create()
+proem: PicamCamera = deviceArray[0].create()
 
 
 def measure(n_frames, exposure_time_ms):
@@ -46,6 +45,7 @@ img = proem.get_captured_image()
 # img = np.asarray(img)
 
 import matplotlib.pyplot as plt
+
 art = plt.matshow(img)
 plt.colorbar(art)
 
