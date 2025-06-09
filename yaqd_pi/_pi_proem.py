@@ -88,7 +88,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
         wait = min(self.get_exposure_time(), 50)  # ms
         self.proem._dev.StartAcquisition()
         while running:
-            await asyncio.sleep(wait_ms/1e3)
+            await asyncio.sleep(wait_ms / 1e3)
             try:
                 available_data, status = self.proem._dev.WaitForAcquisitionUpdate(wait_ms)
             except self.PicamError as e:
