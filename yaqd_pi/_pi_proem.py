@@ -185,8 +185,8 @@ class PiProem(HasMapping, HasMeasureTrigger):
             "mean": (
                 self._state["roi"]["height"] // self._state["roi"]["y_binning"],
                 self._state["roi"]["width"] // self._state["roi"]["x_binning"],
-            ),
-        }  # type: ignore
+            ),  # type: ignore
+        }
 
     def get_roi(self) -> dict:
         _roi = self.proem.params.Rois.get_value()[0]
