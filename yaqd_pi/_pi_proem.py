@@ -40,32 +40,22 @@ class PiProem(HasMapping, HasMeasureTrigger):
 
         self.PicamEnums = PicamEnums
         self.PicamError = PicamError
-
         # open camera
         deviceArray = list_instruments()
         if len(deviceArray) == 0:
             raise PicamError("No devices found.")
         self.proem: PicamCamera = deviceArray[0].create()
 
-        # register properties
-        self.set_exposure_time, self.get_exposure_time = self.gen_param("ExposureTime")
-        self.set_readout_count, self.get_readout_count = self.gen_param("ReadoutCount")
-        self.set_adc_analog_gain, self.get_adc_analog_gain = self.gen_param("AdcAnalogGain")
-        self.set_em_gain, self.get_em_gain = self.gen_param("AdcEMGain")
-        self.set_adc_quality, self.get_adc_quality = self.gen_param("AdcQuality")
-        self.set_adc_speed, self.get_adc_speed = self.gen_param("AdcSpeed")
+        self.parameters = list(self.proem.params.parameters.keys())
+        self.enum_keys = set(self.get_parameters()) & set(self.PicamEnums._get_enum_dict())
 
-        # properties = [
-        #     "ExposureTime",
-        #     "AdcEMGain",
-        #     "ReadoutCount",
-        #     "AdcAnalogGain",
-        #     "AdcSpeed",
-        #     "AdcQuality",
-        # ]
-        # for prop in properties:
-        #     setattr(self, f"set_{prop}", self.gen_set_param(prop))
-        #     setattr(self, f"get_{prop}", self.get_get_param(prop))
+        # register properties
+        self.set_exposure_time, self.get_exposure_time, _ = self.gen_param("ExposureTime")
+        self.set_readout_count, self.get_readout_count, _ = self.gen_param("ReadoutCount")
+        self.set_analog_gain, self.get_analog_gain, self.get_analog_gain_types = self.gen_param("AdcAnalogGain")
+        self.set_adc_quality, self.get_adc_quality, self.get_adc_quality_types = self.gen_param("AdcQuality")
+        self.set_adc_speed, self.get_adc_speed, _ = self.gen_param("AdcSpeed")
+        self.set_em_gain, self.get_em_gain, _ = self.gen_param("AdcEMGain")
 
         self.set_roi(ROI_UI()._asdict())
         # make the static wavelengths to pixel mapping an attribute of the daemon;
@@ -151,9 +141,9 @@ class PiProem(HasMapping, HasMeasureTrigger):
         try:
             # assert roi.height % roi.y_binning == 0 and roi.width % roi.x_binning == 0
             # assert not (self._state["spectrometer_mode"] == "spectral" and roi.x_binning != 1)
-            assert roi.bottom > roi.height
+            assert roi.bottom >= roi.height
         except AssertionError as e:
-            self.logger.error(e)
+            self.logger.error(e.add_note(f"roi {roi}"))
             raise e
 
         self.proem.set_roi(**ui_to_native(roi)._asdict())
@@ -194,23 +184,44 @@ class PiProem(HasMapping, HasMeasureTrigger):
         return native_to_ui(roi)._asdict()
 
     def gen_param(self, param):
+        """dynamic setter, getter creation for parameters
+        """
         my_param = self.proem.params.parameters[param]
+
+        if param in self.enum_keys:
+            param_enums = getattr(self.PicamEnums, param)
+            _set = lambda val: my_param.set_value(
+                param_enums[val]
+            )
+            _get = lambda _: my_param.get_value().name
+            parameter_type = lambda _: [i.name for i in param_enums]
+        else:
+            _set = lambda val: my_param.set_value(val)
+            _get = lambda _: my_param.get_value()
+            parameter_type = None
+
+        # wrap functions with error reporting
+        def get_parameter():
+            try:
+                value = _get(None)
+            except Exception as e:
+                self.logger.error(f"get {param}")
+                self.logger.error(e)
+                raise e
+            return value
 
         def set_parameter(val):
             try:
-                # NOTE: to apply must use commit_parameters;
-                # update_state takes care of this
-                my_param.set_value(val)
-            except self.PicamError as e:
+                _set(val)
+            except Exception as e:
+                self.logger.error(f"set {param} {val}")
                 self.logger.error(e)
+                raise e
 
-        def get_parameter():
-            return my_param.get_value()
-
-        return set_parameter, get_parameter
+        return set_parameter, get_parameter, parameter_type
 
     def get_parameters(self) -> list[str]:
-        return [p for p in self.proem._dev.parameters.keys()]
+        return self.parameters
 
     def set_spectrometer_mode(self, mode: str):
         # ddk: I don't understand why we need a mode: we just give the user both mappings, yes?
@@ -287,6 +298,15 @@ class PiProem(HasMapping, HasMeasureTrigger):
 
     def get_sensor_temperature(self):
         return self.proem.params.SensorTemperatureReading.get_value()
+    
+    def get_exposure_time_units(self):
+        return "ms"
+
+    def get_adc_speed_units(self):
+        return "MHz"
+
+    def get_em_gain_limits(self):
+        return [1., 100.]
 
     def close(self):
         self.proem.close()
