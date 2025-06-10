@@ -4,7 +4,8 @@ import asyncio
 import numpy as np
 from time import sleep
 
-from yaqd_core import HasMapping, HasMeasureTrigger
+# ignore types until https://github.com/yaq-project/yaq-python/pull/82 is implemented
+from yaqd_core import HasMapping, HasMeasureTrigger  # type: ignore
 
 from scipy.interpolate import interp1d  # type: ignore
 from ._roi import ROI_native, ROI_UI, ui_to_native, native_to_ui
