@@ -152,33 +152,27 @@ class PiProem(HasMapping, HasMeasureTrigger):
 
         self.proem.set_roi(**ui_to_native(roi)._asdict())
         # register new mappings
-        native = self.proem.params.Rois.get_value()[0]
-        roi_native = ROI_native(
-            native.x, native.y, native.width, native.height, native.y_binning, native.x_binning
-        )
-        self._state["roi"] = native_to_ui(roi_native)._asdict()
+        # TODO: indexing is weird?
+        new = self.get_roi()  # ui
 
-        # TODO: better to do orientation stuff after the fact
         self._mappings["y_index"] = np.arange(
-            self._state["roi"]["bottom"]
-            - (self._state["roi"]["height"] // self._state["roi"]["y_binning"]),
-            self._state["roi"]["bottom"],
+            new["bottom"] - (new["height"] // new["y_binning"]),
+            new["bottom"],
             dtype="i2",
         )[:, None]
         self._mappings["x_index"] = np.arange(
-            self._state["roi"]["left"],
-            self._state["roi"]["left"]
-            + (self._state["roi"]["width"] // self._state["roi"]["x_binning"]),
+            new["left"],
+            new["left"] + (new["width"] // new["x_binning"]),
             dtype="i2",
         )[None, :]
         self._mappings["wavelengths"] = self._gen_mapping()[None, :]
 
         # channel indexing is (y_index, x_index)
-        # ignore types until https://github.com/yaq-project/yaq-python/pull/82 is implemented
+        # ignore 2D shape types until https://github.com/yaq-project/yaq-python/pull/82 is implemented
         self._channel_shapes = {
             "mean": (
-                self._state["roi"]["height"] // self._state["roi"]["y_binning"],
-                self._state["roi"]["width"] // self._state["roi"]["x_binning"],
+                new["height"] // new["y_binning"],
+                new["width"] // new["x_binning"],
             ),  # type: ignore
         }
 
@@ -225,43 +219,33 @@ class PiProem(HasMapping, HasMeasureTrigger):
         return self.parameters
 
     def set_spectrometer_mode(self, mode: str):
-        # ddk: I don't understand why we need a mode: we just give the user both mappings, yes?
+        # In its current implementation,
+        # spectrometer_mode changes the ROI to maximum along spectral axis,
+        # and is a plot hint to communicate what mapping to use
+        # future plan is to remove the automatic mapping and retain old ROI
+        # DDK 2025-06-10
+        roi = ROI_UI(**self.get_roi())
         if mode == "spatial":
-            # when going to spatial mode from spectral, there's not a good way to have the roi
-            # return to the previous spatial roi since I need to change horizontal mappings
-            # concurrently. I will live with this for now. It's another simple set_roi command
-            # to get it back where the user wants it.
             self._mappings["x_index"] = np.arange(
-                self._state["roi"]["left"],
-                self._state["roi"]["left"]
-                + (self._state["roi"]["width"] // self._state["roi"]["x_binning"]),
-                dtype="i2",
-            )[None, :]
+                0,
+                roi.width // roi.x_binning,
+                dtype="i2"
+            )[None, :] + roi.left
             self._mappings["wavelengths"] = self._gen_mapping()[None, :]
 
             self._state["spectrometer_mode"] = mode
         if mode == "spectral":
-            if self._state["roi"]["x_binning"] != 1:
-                self.logger.warning(
-                    """You're now in spectral mode and would bin spectral axis with current roi settings.
-                     Consider changing x_binning=1 via set_roi()."""
-                )
+            if roi.x_binning == 1:
+                self.logger.error("need x_binning ==1")
+                raise ValueError
             self.proem.set_roi(y=0, height=512)  # sets roi on the camera level, not daemon level
-            self._state["roi"] = {
-                "left": 0,
-                "width": 512,
-                "bottom": self._state["roi"]["bottom"],
-                "height": self._state["roi"]["height"],
-                "x_binning": self._state["roi"]["x_binning"],
-                "y_binning": self._state["roi"]["y_binning"],
-            }  # sets roi on daemon level
+            roi = ROI_UI(**self.get_roi())
 
             self._mappings["x_index"] = np.arange(
-                self._state["roi"]["left"],
-                self._state["roi"]["left"]
-                + (self._state["roi"]["width"] // self._state["roi"]["x_binning"]),
+                0,
+                roi.width // roi.x_binning,
                 dtype="i2",
-            )[None, :]
+            )[None, :] + roi.left
             self._mappings["wavelengths"] = self._gen_mapping()[None, :]
             self._state["spectrometer_mode"] = mode
 
