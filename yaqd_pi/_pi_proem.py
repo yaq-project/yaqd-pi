@@ -228,11 +228,9 @@ class PiProem(HasMapping, HasMeasureTrigger):
         # DDK 2025-06-10
         roi = ROI_UI(**self.get_roi())
         if mode == "spatial":
-            self._mappings["x_index"] = np.arange(
-                0,
-                roi.width // roi.x_binning,
-                dtype="i2"
-            )[None, :] + roi.left
+            self._mappings["x_index"] = (
+                np.arange(0, roi.width // roi.x_binning, dtype="i2")[None, :] + roi.left
+            )
             self._mappings["wavelengths"] = self._gen_mapping()[None, :]
 
             self._state["spectrometer_mode"] = mode
@@ -243,11 +241,14 @@ class PiProem(HasMapping, HasMeasureTrigger):
             self.proem.set_roi(y=0, height=512)  # sets roi on the camera level, not daemon level
             roi = ROI_UI(**self.get_roi())
 
-            self._mappings["x_index"] = np.arange(
-                0,
-                roi.width // roi.x_binning,
-                dtype="i2",
-            )[None, :] + roi.left
+            self._mappings["x_index"] = (
+                np.arange(
+                    0,
+                    roi.width // roi.x_binning,
+                    dtype="i2",
+                )[None, :]
+                + roi.left
+            )
             self._mappings["wavelengths"] = self._gen_mapping()[None, :]
             self._state["spectrometer_mode"] = mode
 
