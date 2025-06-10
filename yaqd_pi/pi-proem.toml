@@ -66,6 +66,7 @@ get_readout_count.response = "int"
 
 set_em_gain.request = [{name="em_gain", type="int"}]
 get_em_gain.response = "int"
+get_em_gain_limits.response = {items="int", type="array"}
 
 set_analog_gain.request = [{name="gain", type="string"}]
 get_analog_gain.response = "string"
@@ -75,7 +76,7 @@ get_sensor_temperature.response = "float"
 
 set_adc_quality.request = [{name="quality", type="string"}]
 get_adc_quality.response = "string"
-get_adc_quality_types.response = [{items='string', type='array'}]
+get_adc_quality_types.response = {items='string', type='array'}
 
 set_adc_speed.request = [{name="speed", type="float"}]
 get_adc_speed.response = "float"

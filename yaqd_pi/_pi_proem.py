@@ -186,10 +186,12 @@ class PiProem(HasMapping, HasMeasureTrigger):
         my_param = self.proem.params.parameters[param]
 
         if param in self.enum_keys:
-            param_enums = getattr(self.PicamEnums, param)
+            param_enums = list(filter(
+                lambda x: my_param.can_set(x), getattr(self.PicamEnums, param)
+            ))
             _set = lambda val: my_param.set_value(param_enums[val])
             _get = lambda _: my_param.get_value().name
-            parameter_type = lambda _: [i.name for i in param_enums]
+            parameter_type = lambda: [i.name for i in param_enums]
         else:
             _set = lambda val: my_param.set_value(val)
             _get = lambda _: my_param.get_value()
@@ -209,7 +211,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
             try:
                 _set(val)
             except Exception as e:
-                self.logger.error(f"set {param} {val}")
+                self.logger.error(f"set {param} {val} {param_enums}")
                 self.logger.error(e, exc_info=True)
                 raise e
 
