@@ -52,8 +52,12 @@ class PiProem(HasMapping, HasMeasureTrigger):
         # register properties
         self.set_exposure_time, self.get_exposure_time, _ = self.gen_param("ExposureTime")
         self.set_readout_count, self.get_readout_count, _ = self.gen_param("ReadoutCount")
-        self.set_analog_gain, self.get_analog_gain, self.get_analog_gain_types = self.gen_param("AdcAnalogGain")
-        self.set_adc_quality, self.get_adc_quality, self.get_adc_quality_types = self.gen_param("AdcQuality")
+        self.set_analog_gain, self.get_analog_gain, self.get_analog_gain_types = self.gen_param(
+            "AdcAnalogGain"
+        )
+        self.set_adc_quality, self.get_adc_quality, self.get_adc_quality_types = self.gen_param(
+            "AdcQuality"
+        )
         self.set_adc_speed, self.get_adc_speed, _ = self.gen_param("AdcSpeed")
         self.set_em_gain, self.get_em_gain, _ = self.gen_param("AdcEMGain")
 
@@ -184,15 +188,12 @@ class PiProem(HasMapping, HasMeasureTrigger):
         return native_to_ui(roi)._asdict()
 
     def gen_param(self, param):
-        """dynamic setter, getter creation for parameters
-        """
+        """dynamic setter, getter creation for parameters"""
         my_param = self.proem.params.parameters[param]
 
         if param in self.enum_keys:
             param_enums = getattr(self.PicamEnums, param)
-            _set = lambda val: my_param.set_value(
-                param_enums[val]
-            )
+            _set = lambda val: my_param.set_value(param_enums[val])
             _get = lambda _: my_param.get_value().name
             parameter_type = lambda _: [i.name for i in param_enums]
         else:
@@ -298,7 +299,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
 
     def get_sensor_temperature(self):
         return self.proem.params.SensorTemperatureReading.get_value()
-    
+
     def get_exposure_time_units(self):
         return "ms"
 
@@ -306,7 +307,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
         return "MHz"
 
     def get_em_gain_limits(self):
-        return [1., 100.]
+        return [1.0, 100.0]
 
     def close(self):
         self.proem.close()
