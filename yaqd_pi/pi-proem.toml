@@ -54,8 +54,8 @@ default = [0.36, 0.841]
 
 [messages]
 
-# set_roi.request = [{name="roi", type="proem_roi"}]
-# get_roi.response = "proem_roi"
+set_roi.request = [{name="roi", type="proem_roi"}]
+get_roi.response = "proem_roi"
 
 set_exposure_time.request = [{name="exposure_time", type="float"}]
 get_exposure_time.response = "float"
@@ -70,9 +70,6 @@ get_em_gain.response = "int"
 set_analog_gain.request = [{name="gain", type="string"}]
 get_analog_gain.response = "string"
 get_analog_gain_types.response = [{items='string', type='array'}]
-
-set_spectrometer_mode.request = [{name="spectrometer_mode", type="spectrometer_mode_enum"}]
-get_spectrometer_mode.response = "spectrometer_mode_enum"
 
 get_sensor_temperature.response = "float"
 
@@ -139,6 +136,7 @@ control_kind = "normal"
 record_kind = "metadata"
 
 [properties.adc_speed]
+type = "float"
 setter = "set_adc_speed"
 getter = "get_adc_speed"
 units_getter = "get_adc_speed_units"

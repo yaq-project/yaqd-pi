@@ -99,7 +99,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
                     continue
                 else:
                     self.proem._dev.StopAcquisition()
-                    self.logger.error(e)
+                    self.logger.error(exc_info=e)
                     raise e
             else:
                 running = status.running
