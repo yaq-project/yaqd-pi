@@ -108,12 +108,10 @@
         },
         "get_adc_quality_types": {
             "request": [],
-            "response": [
-                {
-                    "items": "string",
-                    "type": "array"
-                }
-            ]
+            "response": {
+                "items": "string",
+                "type": "array"
+            }
         },
         "get_adc_speed": {
             "request": [],
