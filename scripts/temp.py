@@ -1,3 +1,8 @@
+"""
+simple imports to test functionality of instrumental-lib
+this was used to inform on daemon methods like _measure
+"""
+
 from instrumental.drivers.cameras.picam import PicamEnums, PicamCamera, list_instruments, PicamError  # type: ignore
 
 deviceArray = list_instruments()
