@@ -24,6 +24,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
 
         self._channel_names = ["mean"]
         self._channel_units = {"mean": "counts"}
+        self._channel_shapes:dict[str, tuple[int, ...]] = dict()
 
         self._channel_mappings = {"mean": ["y_index", "x_index", "wavelengths"]}
         self._mapping_units = {"y_index": "None", "x_index": "None", "wavelengths": "nm"}
