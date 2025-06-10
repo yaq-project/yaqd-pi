@@ -146,8 +146,8 @@ class PiProem(HasMapping, HasMeasureTrigger):
 
     # --- properties ------------------------------------------------------------------------------
 
-    def set_roi(self, roi: dict[str, int]):
-        roi = ROI_UI(**roi)
+    def set_roi(self, _roi: dict[str, int]):
+        roi = ROI_UI(**_roi)
 
         if roi.height % roi.y_binning != 0 or roi.width % roi.x_binning != 0:
             self.logger.error(
