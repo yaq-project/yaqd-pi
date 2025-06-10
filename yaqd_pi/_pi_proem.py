@@ -147,7 +147,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
             # assert not (self._state["spectrometer_mode"] == "spectral" and roi.x_binning != 1)
             assert roi.bottom >= roi.height
         except AssertionError as e:
-            self.logger.error(e.add_note(f"roi {roi}"))
+            self.logger.error(e, exc_info=True)
             raise e
 
         self.proem.set_roi(**ui_to_native(roi)._asdict())
@@ -207,7 +207,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
                 value = _get(None)
             except Exception as e:
                 self.logger.error(f"get {param}")
-                self.logger.error(e)
+                self.logger.error(e, exc_info=True)
                 raise e
             return value
 
@@ -216,7 +216,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
                 _set(val)
             except Exception as e:
                 self.logger.error(f"set {param} {val}")
-                self.logger.error(e)
+                self.logger.error(e, exc_info=True)
                 raise e
 
         return set_parameter, get_parameter, parameter_type
