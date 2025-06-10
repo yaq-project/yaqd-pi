@@ -4,7 +4,6 @@ import asyncio
 import numpy as np
 from time import sleep
 
-# ignore types until https://github.com/yaq-project/yaq-python/pull/82 is implemented
 from yaqd_core import HasMapping, HasMeasureTrigger
 
 from scipy.interpolate import interp1d  # type: ignore
@@ -25,7 +24,6 @@ class PiProem(HasMapping, HasMeasureTrigger):
 
         self._channel_names = ["mean"]
         self._channel_units = {"mean": "counts"}
-        self._channel_shapes = dict()  # type: ignore
 
         self._channel_mappings = {"mean": ["y_index", "x_index", "wavelengths"]}
         self._mapping_units = {"y_index": "None", "x_index": "None", "wavelengths": "nm"}
@@ -150,55 +148,45 @@ class PiProem(HasMapping, HasMeasureTrigger):
 
     def set_roi(self, _roi: dict[str, int]):
         roi = ROI_UI(**_roi)
+        try:
+            # assert roi.height % roi.y_binning == 0 and roi.width % roi.x_binning == 0
+            # assert not (self._state["spectrometer_mode"] == "spectral" and roi.x_binning != 1)
+            assert roi.bottom > roi.height
+        except AssertionError as e:
+            self.logger.error(e)
+            raise e
 
-        if roi.height % roi.y_binning != 0 or roi.width % roi.x_binning != 0:
-            self.logger.error(
-                """Pixel binning and extent(s) of roi are not compatible. Check there is no remainder in both width/x_bin and height/y_bin.
-                      ***Leaving roi unchanged.***"""
-            )
-        elif self._state["spectrometer_mode"] == "spectral" and roi.x_binning != 1:
-            self.logger.error(
-                """You're in spectral mode and you wish to bin spectral axis, or have not changed x_binning from spatial mode yet.
-                     Consider doing set_roi() and changing x_binning=1.
-                     ***leaving roi unchanged.*** """
-            )
-        elif roi.bottom < roi.height:
-            self.logger.error(
-                """The height of ROI requested is too large for where beginning bottom pixel is indicated.
-                     This would create a mapping with negative pixels and will not allow for image capture.
-                     ***Leaving roi unchanged.*** """
-            )
-        else:
-            self.proem.set_roi(**ui_to_native(roi)._asdict())
-            # register new mappings
-            native = self.proem.params.Rois.get_value()[0]
-            roi_native = ROI_native(
-                native.x, native.y, native.width, native.height, native.y_binning, native.x_binning
-            )
-            self._state["roi"] = native_to_ui(roi_native)._asdict()
+        self.proem.set_roi(**ui_to_native(roi)._asdict())
+        # register new mappings
+        native = self.proem.params.Rois.get_value()[0]
+        roi_native = ROI_native(
+            native.x, native.y, native.width, native.height, native.y_binning, native.x_binning
+        )
+        self._state["roi"] = native_to_ui(roi_native)._asdict()
 
-            # TODO: better to do orientation stuff after the fact
-            self._mappings["y_index"] = np.arange(
-                self._state["roi"]["bottom"]
-                - (self._state["roi"]["height"] // self._state["roi"]["y_binning"]),
-                self._state["roi"]["bottom"],
-                dtype="i2",
-            )[:, None]
-            self._mappings["x_index"] = np.arange(
-                self._state["roi"]["left"],
-                self._state["roi"]["left"]
-                + (self._state["roi"]["width"] // self._state["roi"]["x_binning"]),
-                dtype="i2",
-            )[None, :]
-            self._mappings["wavelengths"] = self._gen_mapping()[None, :]
+        # TODO: better to do orientation stuff after the fact
+        self._mappings["y_index"] = np.arange(
+            self._state["roi"]["bottom"]
+            - (self._state["roi"]["height"] // self._state["roi"]["y_binning"]),
+            self._state["roi"]["bottom"],
+            dtype="i2",
+        )[:, None]
+        self._mappings["x_index"] = np.arange(
+            self._state["roi"]["left"],
+            self._state["roi"]["left"]
+            + (self._state["roi"]["width"] // self._state["roi"]["x_binning"]),
+            dtype="i2",
+        )[None, :]
+        self._mappings["wavelengths"] = self._gen_mapping()[None, :]
 
-            self._channel_shapes = {
-                "image": (
-                    self._state["roi"]["height"] // self._state["roi"]["y_binning"],
-                    self._state["roi"]["width"] // self._state["roi"]["x_binning"],
-                ),
-            }
-            # channel indexing is (y_index, x_index)
+        # channel indexing is (y_index, x_index)
+        # ignore types until https://github.com/yaq-project/yaq-python/pull/82 is implemented
+        self._channel_shapes = {
+            "mean": (
+                self._state["roi"]["height"] // self._state["roi"]["y_binning"],
+                self._state["roi"]["width"] // self._state["roi"]["x_binning"],
+            ),
+        } # type: ignore
 
     def get_roi(self) -> dict:
         _roi = self.proem.params.Rois.get_value()[0]
@@ -225,6 +213,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
         return [p for p in self.proem._dev.parameters.keys()]
 
     def set_spectrometer_mode(self, mode: str):
+        # ddk: I don't understand why we need a mode: we just give the user both mappings, yes?
         if mode == "spatial":
             # when going to spatial mode from spectral, there's not a good way to have the roi
             # return to the previous spatial roi since I need to change horizontal mappings
@@ -238,48 +227,31 @@ class PiProem(HasMapping, HasMeasureTrigger):
             )[None, :]
             self._mappings["wavelengths"] = self._gen_mapping()[None, :]
 
-            self._channel_shapes = {
-                "image": (
-                    self._state["roi"]["height"] // self._state["roi"]["y_binning"],
-                    self._state["roi"]["width"] // self._state["roi"]["x_binning"],
-                ),
-            }
             self._state["spectrometer_mode"] = mode
         if mode == "spectral":
             if self._state["roi"]["x_binning"] != 1:
-                print(
+                self.logger.warning(
                     """You're now in spectral mode and would bin spectral axis with current roi settings.
-                     Consider changing x_binning=1 via set_roi().
-                     ***leaving spectrometer_mode unchanged.*** """
+                     Consider changing x_binning=1 via set_roi()."""
                 )
-            else:
-                self.proem.set_roi(
-                    y=0, height=512
-                )  # sets roi on the camera level, not daemon level
-                self._state["roi"] = {
-                    "left": 0,
-                    "width": 512,
-                    "bottom": self._state["roi"]["bottom"],
-                    "height": self._state["roi"]["height"],
-                    "x_binning": self._state["roi"]["x_binning"],
-                    "y_binning": self._state["roi"]["y_binning"],
-                }  # sets roi on daemon level
+            self.proem.set_roi(y=0, height=512)  # sets roi on the camera level, not daemon level
+            self._state["roi"] = {
+                "left": 0,
+                "width": 512,
+                "bottom": self._state["roi"]["bottom"],
+                "height": self._state["roi"]["height"],
+                "x_binning": self._state["roi"]["x_binning"],
+                "y_binning": self._state["roi"]["y_binning"],
+            }  # sets roi on daemon level
 
-                self._mappings["x_index"] = np.arange(
-                    self._state["roi"]["left"],
-                    self._state["roi"]["left"]
-                    + (self._state["roi"]["width"] // self._state["roi"]["x_binning"]),
-                    dtype="i2",
-                )[None, :]
-                self._mappings["wavelengths"] = self._gen_mapping()[None, :]
-
-                self._channel_shapes = {
-                    "image": (
-                        self._state["roi"]["height"] // self._state["roi"]["y_binning"],
-                        self._mappings["wavelengths"].size,
-                    ),
-                }
-                self._state["spectrometer_mode"] = mode
+            self._mappings["x_index"] = np.arange(
+                self._state["roi"]["left"],
+                self._state["roi"]["left"]
+                + (self._state["roi"]["width"] // self._state["roi"]["x_binning"]),
+                dtype="i2",
+            )[None, :]
+            self._mappings["wavelengths"] = self._gen_mapping()[None, :]
+            self._state["spectrometer_mode"] = mode
 
     def get_spectrometer_mode(self):
         return self._state["spectrometer_mode"]
