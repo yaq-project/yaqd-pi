@@ -71,7 +71,6 @@ class PiProem(HasMapping, HasMeasureTrigger):
         self._set_temperature()
         self.logger.info("initialized.")
 
-
     async def update_state(self):
         """commit parameters when it is safe to do so"""
         while True:
