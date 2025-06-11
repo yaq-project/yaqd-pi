@@ -53,7 +53,7 @@ default = -70.0
 [config.spectrometer]
 type = ["null", "spectral_mapping"]
 doc = "If you have a spectrometer enter the params here."
-default = "null"
+default = "__null__"
 
 [state]
 
