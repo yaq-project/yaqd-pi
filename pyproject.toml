@@ -12,7 +12,6 @@ requires-python = ">=3.7"
 requires = [
     "yaqd-core>=2021.2.0",
     "instrumental<=0.7",
-    "scipy"
 ]
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",

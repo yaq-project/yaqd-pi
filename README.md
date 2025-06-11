@@ -13,6 +13,27 @@ This package contains the following daemon(s):
 
 - https://yaq.fyi/daemons/pi-proem
 
+# yaqd-pi-proem: Spectrometer configuration
+
+Wavelength mappings are calculated using grating equation.  The diffracted angle $\beta$, incidence angle $\alpha$, and wavelength $\lambda$ are related by:
+$$ \frac{m \lambda}{d} = \sin \beta - \sin \alpha, $$
+where $m$ is the diffraction order and $d$ is the grating groove spacing.
+_Note that with a transmissive grating, the incidence angle is internal to the grating and will be affected by refraction._
+
+The diffracted rays are related to the camera pixel position by:
+$$ x-x_0 = f \tan \beta, $$
+where $x_0$ is the (hypothetical) position of the 0$^{th}$-order ray, and $f$ is the focal length of the imaging optic.
+
+Using both equations, we can relate imaging position to wavelength:
+$$ \tan^{-1} \frac{x-x_0}{f} = \sin^{-1}\left(\frac{m\lambda}{d} - \sin \alpha \right)$$
+or
+$$ \lambda(x; x_0, f, m, d, \alpha) = \frac{d}{m} \sin \left[ \tan^{-1} \left(\frac{x-x_0}{f}\right) \right] + \sin\alpha$$
+To set these parameters, confer the configuration file schema.
+
+## An example calibration routine
+
+To perform a single-point calibration, send in a known wavelength and find the position on the camera
+
 ## maintainers
 
 - [Jason Scheeler](https://github.com/jscheeler1)
