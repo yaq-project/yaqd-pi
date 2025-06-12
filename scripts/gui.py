@@ -1,4 +1,6 @@
+# mypy: ignore errors
 from matplotlib.widgets import Slider, CheckButtons
+from matplotlib.colors import Normalize
 import matplotlib.pyplot as plt
 import yaqc
 import numpy as np
@@ -9,7 +11,6 @@ import click
 @click.option("--host", default="127.0.0.1", help="host of yaqd-pi-proem. defaults to 127.0.0.1")
 @click.argument("port", type=int)
 def main(port:int, host):
-    print(port, type(port))
     cam = yaqc.Client(port=port, host=host)
 
     x = cam.get_mappings()["x_index"]
@@ -22,8 +23,9 @@ def main(port:int, host):
     except KeyError:
         y0 = np.zeros((x*y).shape)
     art = ax.matshow(y0)
+    fig.colorbar(art, ax=ax)
 
-    integration = Slider(opt1, "integration time (ms)", 3000, 1e6, valinit=cam.get_exposure_time())
+    integration = Slider(opt1, "integration time (ms)", 33, 1e3, valstep=1, valinit=cam.get_exposure_time())
     acquisition = Slider(opt2, "acquisitions (2^x)", 0, 8, valinit=0, valstep=1)
     measure_button = CheckButtons(opt3, labels=["call measure"], label_props=dict(fontsize=[20]))
 
@@ -35,6 +37,7 @@ def main(port:int, host):
 
     def update_line(data):
         art.set_data(data)
+        art.set_norm(Normalize())
         fig.canvas.draw_idle()
 
 
@@ -62,6 +65,7 @@ def main(port:int, host):
 
 
     def update_integration_time(arg):
+        print(f"updating to {arg}")
         cam.set_exposure_time(arg)
 
 
@@ -78,3 +82,6 @@ def main(port:int, host):
 
 if __name__ == "__main__":
     main()
+
+
+# <3> ERR : 2025-06-12T16:07:35-0500 : proem : Caught exception: <class 'NameError'> in message set_exposure_time
