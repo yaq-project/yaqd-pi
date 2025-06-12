@@ -35,7 +35,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
             PicamError,
             PicamCamera,
             PicamEnums,
-        )  # type: ignore
+        )
 
         self.PicamEnums = PicamEnums
         self.PicamError = PicamError
