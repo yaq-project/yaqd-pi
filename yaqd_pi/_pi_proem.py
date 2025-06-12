@@ -20,18 +20,22 @@ class PiProem(HasMapping, HasMeasureTrigger):
             self.logger.info("Starting Emulated camera")
             sdk.connect_demo_camera(PicamEnums.Model.ProEMHS512BExcelon, "demo")
 
+        # channels
+        self._channel_names = ["mean"]
+        self._channel_units = {"mean": "counts"}
         self._channel_mappings = {"mean": ["y_index", "x_index"]}
         self._mapping_units = {"y_index": "None", "x_index": "None"}
 
         # somehow instrumental overrides our logger...
         # I need to import these only after our daemon logger is initiated
         # DDK 2025-06-05
+        self.logger.info("initializing picam. This can take a few seconds...")
         from instrumental.drivers.cameras.picam import (
             list_instruments,
             PicamError,
             PicamCamera,
             PicamEnums,
-        )  # type: ignore
+        )
 
         self.PicamEnums = PicamEnums
         self.PicamError = PicamError
@@ -58,15 +62,14 @@ class PiProem(HasMapping, HasMeasureTrigger):
 
         # initialize with default parameters
         self.set_roi(ROI_UI()._asdict())
-        # channels
-        self._channel_names = ["mean"]
-        self._channel_units = {"mean": "counts"}
 
         if self._config["spectrometer"] is not None:
+            self.logger.info("we have a spectrometer")
             self._mapping_units["wavelengths"] = "nm"
             self._channel_mappings["mean"].append("wavelengths")
-            self._mappings["wavelengths"] = self._gen_mapping()
+            self._mappings["wavelengths"] = self._gen_spectral_mapping()
         self._set_temperature()
+        self.logger.info("initialized.")
 
     async def update_state(self):
         """commit parameters when it is safe to do so"""
@@ -138,14 +141,13 @@ class PiProem(HasMapping, HasMeasureTrigger):
             new.left + (new.width // new.x_binning),
             dtype="i2",
         )[None, :]
-        self._mappings["wavelengths"] = self._gen_mapping()[None, :]
 
         # channel indexing is (y_index, x_index)
         # ignore 2D shape types until https://github.com/yaq-project/yaq-python/pull/82 is implemented
         self._channel_shapes = {
             "mean": (
-                new["height"] // new["y_binning"],
-                new["width"] // new["x_binning"],
+                new.height // new.y_binning,
+                new.width // new.x_binning,
             ),  # type: ignore
         }
 
@@ -204,7 +206,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
             self._mappings["x_index"] = (
                 np.arange(0, roi.width // roi.x_binning, dtype="i2")[None, :] + roi.left
             )
-            self._mappings["wavelengths"] = self._gen_mapping()[None, :]
+            self._mappings["wavelengths"] = self._gen_spectral_mapping()[None, :]
 
             self._state["spectrometer_mode"] = mode
         if mode == "spectral":
@@ -222,7 +224,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
                 )[None, :]
                 + roi.left
             )
-            self._mappings["wavelengths"] = self._gen_mapping()[None, :]
+            self._mappings["wavelengths"] = self._gen_spectral_mapping()[None, :]
             self._state["spectrometer_mode"] = mode
 
     def get_spectrometer_mode(self):
@@ -232,7 +234,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
         self.proem.params.SensorTemperatureSetPoint.set_value(
             self._config["sensor_temperature_setpoint"]
         )
-        self._loop.run_in_executor(None, self._check_temp_stabilized())
+        self._loop.create_task(self._check_temp_stabilized())
 
     async def _check_temp_stabilized(self):
         set_temp = self.proem.params.SensorTemperatureSetPoint.get_value()
