@@ -1,3 +1,6 @@
+# mypy: ignore-errors
+
+# scratchwork for implementing spectrometer mapping
 import numpy as np
 from scipy.interpolate import interp1d
 
@@ -16,7 +19,7 @@ ws = np.linspace(spec["spectral_range"][0], spec["spectral_range"][1], 2048)  # 
 f = spec["focal_length"]  # mm
 n = spec["grating_refractive_index"]
 # calculate diffraction angles
-aods = np.arcsin(n * np.sin(aoi) - (ws / a))
+aods = np.arcsin(n * np.sin(aoi) - (ws / groove_spacing))
 # convert angles to spatial positions
 xs = f * np.tan(aods)  # mm
 # position (relative to 0 order transmission) = f * np.tan(np.arcsin(c1-lambda/a))
@@ -38,3 +41,34 @@ out = g(pixels) * 1000
 #     self._mappings["x_index"][0][:]
 # ]  # keep horizontal mappings equal size so wt5 file doesn't get confused
 # return np.round(out, 2)  # account for physical orientation of camera
+
+
+# from yaqd-wright-ingaas
+def _gen_mappings(self):
+    """Get map."""
+    # translate inputs into appropriate internal units
+    spec_inclusion_angle_rad = np.radians(self._config["inclusion_angle"])
+    spec_focal_length_tilt_rad = np.radians(self._config["focal_length_tilt"])
+    pixel_width_mm = 0.050  # 50 microns
+    # create array
+    i_pixel = np.arange(256)  # 256 pixels
+    # calculate terms
+    x = np.arcsin(
+        (1e-6 * self._config["order"] * self._config["grooves_per_mm"] * self.spec_position)
+        / (2 * np.cos(spec_inclusion_angle_rad / 2.0))
+    )
+    A = np.sin(x - spec_inclusion_angle_rad / 2)
+    B = np.sin(
+        (spec_inclusion_angle_rad)
+        + x
+        - (spec_inclusion_angle_rad / 2)
+        - np.arctan(
+            (
+                pixel_width_mm * (i_pixel - self._config["calibration_pixel"])
+                + self._config["focal_length"] * spec_focal_length_tilt_rad
+            )
+            / (self._config["focal_length"] * np.cos(spec_focal_length_tilt_rad))
+        )
+    )
+    out = ((A + B) * 1e6) / (self._config["order"] * self._config["grooves_per_mm"])
+    return out

@@ -15,7 +15,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
         super().__init__(name, config, config_filepath)
 
         if config.get("emulate"):
-            from instrumental.drivers.cameras.picam import sdk
+            from instrumental.drivers.cameras.picam import sdk  # type: ignore
 
             self.logger.info("Starting Emulated camera")
             sdk.connect_demo_camera(PicamEnums.Model.ProEMHS512BExcelon, "demo")
