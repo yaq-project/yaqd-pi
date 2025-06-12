@@ -206,7 +206,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
             self._mappings["x_index"] = (
                 np.arange(0, roi.width // roi.x_binning, dtype="i2")[None, :] + roi.left
             )
-            self._mappings["wavelengths"] = self._gen_mapping()[None, :]
+            self._mappings["wavelengths"] = self._gen_spectral_mapping()[None, :]
 
             self._state["spectrometer_mode"] = mode
         if mode == "spectral":
@@ -224,7 +224,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
                 )[None, :]
                 + roi.left
             )
-            self._mappings["wavelengths"] = self._gen_mapping()[None, :]
+            self._mappings["wavelengths"] = self._gen_spectral_mapping()[None, :]
             self._state["spectrometer_mode"] = mode
 
     def get_spectrometer_mode(self):
