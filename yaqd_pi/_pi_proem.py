@@ -120,9 +120,13 @@ class PiProem(HasMapping, HasMeasureTrigger):
                         raise e
                 else:
                     running = status.running
-                    self.logger.info(f"running {bool(running)}, readouts {available_data.readout_count}")
+                    self.logger.info(
+                        f"running {bool(running)}, readouts {available_data.readout_count}"
+                    )
                     if available_data.readout_count:
-                        readouts.extend(self.proem._extract_available_data(available_data, copy=True))
+                        readouts.extend(
+                            self.proem._extract_available_data(available_data, copy=True)
+                        )
             if (actual := len(readouts)) != expected_readouts:
                 self.logger.warning(f"expected {expected_readouts} images, but got {actual}")
         return {"mean": np.rot90(np.asarray(readouts).mean(axis=(0, 1, 2)), 1)}
