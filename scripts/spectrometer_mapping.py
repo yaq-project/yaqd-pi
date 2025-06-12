@@ -2,19 +2,17 @@ import numpy as np
 from scipy.interpolate import interp1d
 
 spec = dict(
-    gpmm = 200,
-    grating_aoi_deg = 5,
-    focal_length = 75,
-    grating_refractive_index = 1.6,
-    spectral_range = [0.36, 0.841],
+    gpmm=200,
+    grating_aoi_deg=5,
+    focal_length=75,
+    grating_refractive_index=1.6,
+    spectral_range=[0.36, 0.841],
 )
 mm_per_pixel = 0.016
 
 groove_spacing = 1e3 / spec["gpmm"]  # um
 aoi = np.radians(spec["grating_aoi_deg"])
-ws = np.linspace(
-    spec["spectral_range"][0], spec["spectral_range"][1], 2048
-)  # um
+ws = np.linspace(spec["spectral_range"][0], spec["spectral_range"][1], 2048)  # um
 f = spec["focal_length"]  # mm
 n = spec["grating_refractive_index"]
 # calculate diffraction angles
