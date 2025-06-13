@@ -4,14 +4,23 @@ import matplotlib.pyplot as plt
 import yaqc
 import numpy as np
 import click
+import logging
+
+
+log_level = logging.INFO
 
 
 @click.command()
 @click.option("--host", default="127.0.0.1", help="host of yaqd-pi-proem. defaults to 127.0.0.1")
 @click.argument("port", type=int)
 def main(port: int, host):
+    logger = logging.getLogger("GUI")
+    logger.setLevel(log_level)
+    logger.addHandler(logging.StreamHandler())
+
     cam = yaqc.Client(port=port, host=host)
 
+    logger.info(cam)
     x = cam.get_mappings()["x_index"]
     y = cam.get_mappings()["y_index"]
 
@@ -31,12 +40,18 @@ def main(port: int, host):
     measure_button = CheckButtons(opt3, labels=["call measure"], label_props=dict(fontsize=[20]))
 
     state = {"current": 0, "next": 0}
+    title = "ID {}"
 
     def update_line(data):
-        ax.set_title(f"ID {data["measurement_id"]}")
-        art.set_data(data["mean"])
-        art.set_norm(Normalize())
-        fig.canvas.draw_idle()
+        if ax.get_title() != title.format(data["measurement_id"]):
+            try:
+                ax.set_title(f"ID {data['measurement_id']}")
+                art.set_data(data["mean"])
+            except Exception as e:
+                logger.error(exc_info=e, stack_info=True)
+                return
+            art.set_norm(Normalize())
+            fig.canvas.draw_idle()
 
     def submit(measure=False):
         try:
@@ -46,10 +61,11 @@ def main(port: int, host):
             measured = cam.get_measured()
             state["current"] = measured["measurement_id"]
             update_line(measured)
-        except ConnectionError:
-            pass
-
-    submit(measure=True)
+        except Exception as e:
+            logger.error(state, exc_info=e)
+            if e == ConnectionError:
+                pass
+            
     timer = fig.canvas.new_timer(interval=200)
 
     @timer.add_callback
