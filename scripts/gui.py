@@ -1,4 +1,3 @@
-# mypy: ignore errors
 from matplotlib.widgets import Slider, CheckButtons
 from matplotlib.colors import Normalize
 import matplotlib.pyplot as plt
@@ -34,7 +33,8 @@ def main(port: int, host):
     state = {"current": 0, "next": 0}
 
     def update_line(data):
-        art.set_data(data)
+        ax.set_title(f"ID {data["measurement_id"]}")
+        art.set_data(data["mean"])
         art.set_norm(Normalize())
         fig.canvas.draw_idle()
 
@@ -44,9 +44,8 @@ def main(port: int, host):
                 if state["current"] >= state["next"]:
                     state["next"] = cam.measure()
             measured = cam.get_measured()
-            y = measured["mean"]
             state["current"] = measured["measurement_id"]
-            update_line(y)
+            update_line(measured)
         except ConnectionError:
             pass
 
@@ -75,5 +74,3 @@ def main(port: int, host):
 if __name__ == "__main__":
     main()
 
-
-# <3> ERR : 2025-06-12T16:07:35-0500 : proem : Caught exception: <class 'NameError'> in message set_exposure_time
