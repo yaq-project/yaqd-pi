@@ -1,232 +1,119 @@
 __all__ = ["PiProem"]
 
+import asyncio
 import numpy as np
-
-from yaqd_core import HasMapping, HasMeasureTrigger, IsSensor, IsDaemon
-from instrumental.drivers.cameras.picam import sdk, PicamEnums, list_instruments, PicamError  # type: ignore
-from instrumental import Q_  # type: ignore
-from scipy.interpolate import interp1d  # type: ignore
 from time import sleep
 
+from yaqd_core import HasMapping, HasMeasureTrigger
 
-def process_frames(method, raw_arrs):
-    # raw_arrs should be a 3D np array, with dim 0 being number of frames
-    if method == "average":
-        proc_arrs = raw_arrs[:].mean(axis=0)
-    elif method == "sum":
-        proc_arrs = raw_arrs[:].sum(axis=0)
-    else:
-        raise KeyError("sample processing method not recognized")
-    return proc_arrs
+from scipy.interpolate import interp1d  # type: ignore
+from ._roi import ROI_native, ROI_UI, ui_to_native, native_to_ui
 
 
-class PiProem(HasMapping, HasMeasureTrigger, IsSensor, IsDaemon):
+class PiProem(HasMapping, HasMeasureTrigger):
     _kind = "pi-proem"
 
     def __init__(self, name, config, config_filepath):
         super().__init__(name, config, config_filepath)
+
         if config.get("emulate"):
-            self.logger.debug("Starting Emulated camera")
+            from instrumental.drivers.cameras.picam import sdk  # type: ignore
+
+            self.logger.info("Starting Emulated camera")
             sdk.connect_demo_camera(PicamEnums.Model.ProEMHS512BExcelon, "demo")
 
-        self._channel_names = ["image"]
-        self._channel_units = {"image": "counts"}
+        self._channel_names = ["mean"]
+        self._channel_units = {"mean": "counts"}
 
-        self._channel_mappings = {"image": ["y_index", "x_index", "wavelengths"]}
+        self._channel_mappings = {"mean": ["y_index", "x_index", "wavelengths"]}
         self._mapping_units = {"y_index": "None", "x_index": "None", "wavelengths": "nm"}
 
-        # find devices
+        # somehow instrumental overrides our logger...
+        # I need to import these only after our daemon logger is initiated
+        # DDK 2025-06-05
+        from instrumental.drivers.cameras.picam import (
+            list_instruments,
+            PicamError,
+            PicamCamera,
+            PicamEnums,
+        )  # type: ignore
+
+        self.PicamEnums = PicamEnums
+        self.PicamError = PicamError
+        # open camera
         deviceArray = list_instruments()
         if len(deviceArray) == 0:
             raise PicamError("No devices found.")
+        self.proem: PicamCamera = deviceArray[0].create()
 
-        # create sdk.PicamCamera() object
-        self.proem = deviceArray[0].create()
-        # set key parameters to default values upon startup
-        self.set_roi(
-            {"left": 0, "bottom": 0, "width": 512, "height": 512, "x_binning": 1, "y_binning": 1}
+        self.parameters = list(self.proem.params.parameters.keys())
+        self.enum_keys = set(self.get_parameters()) & set(self.PicamEnums._get_enum_dict())
+
+        # register properties
+        self.set_exposure_time, self.get_exposure_time, _ = self.gen_param("ExposureTime")
+        self.set_readout_count, self.get_readout_count, _ = self.gen_param("ReadoutCount")
+        self.set_analog_gain, self.get_analog_gain, self.get_analog_gain_types = self.gen_param(
+            "AdcAnalogGain"
         )
-        self.set_spectrometer_mode("spatial")
-        # make the static wavelengths to pixel mapping an attribute of the daemon; don't update self._mappings as this changes between spatial and spectral
-        self._mappings["wavelengths"] = self._gen_mapping()
-        self.set_em_gain(1)
-        self.set_exposure_time(33)
-        self.set_readout_count(1)
-        self.set_frame_processing_method("average")
+        self.set_adc_quality, self.get_adc_quality, self.get_adc_quality_types = self.gen_param(
+            "AdcQuality"
+        )
+        self.set_adc_speed, self.get_adc_speed, _ = self.gen_param("AdcSpeed")
+        self.set_em_gain, self.get_em_gain, _ = self.gen_param("AdcEMGain")
 
+        self.set_roi(ROI_UI()._asdict())
+        # make the static wavelengths to pixel mapping an attribute of the daemon;
+        # don't update self._mappings as this changes between spatial and spectral
+        self._mappings["wavelengths"] = self._gen_mapping()
+        # initialize with default parameters
         self._set_temperature()
 
-    def set_roi(self, roi: dict):
-        # because the camera is rotated 90 deg, all of the roi params will be flipped under the hood
-        # so the output arrays and shapes make sense to the user as the camera is currently placed.
-        # i.e. The goal is to have a new user never know the camera is rotated.
-        # so, left <--> bottom
-        # top <--> left
-        # width <--> height
-        # x_binning <--> y_binning
-        if roi["height"] % roi["y_binning"] != 0 or roi["width"] % roi["x_binning"] != 0:
-            print(
-                """Pixel binning and extent(s) of roi are not compatible. Check there is no remainder in both width/x_bin and height/y_bin.
-                      ***Leaving roi unchanged.***"""
-            )
-        elif self._state["spectrometer_mode"] == "spectral" and roi["x_binning"] != 1:
-            print(
-                """You're in spectral mode and you wish to bin spectral axis, or have not changed x_binning from spatial mode yet.
-                     Consider doing set_roi() and changing x_binning=1.
-                     ***leaving roi unchanged.*** """
-            )
-        else:
-            self.proem.set_roi(
-                x=roi["bottom"],
-                y=roi["left"],
-                width=roi["height"],
-                height=roi["width"],
-                x_binning=roi["y_binning"],
-                y_binning=roi["x_binning"],
-            )
-
-            pld_roi = self.proem.params.Rois.get_value()[0]
-            self._state["roi"] = {
-                "left": pld_roi.y,
-                "width": pld_roi.height,
-                "bottom": pld_roi.x,
-                "height": pld_roi.width,
-                "x_binning": pld_roi.y_binning,
-                "y_binning": pld_roi.x_binning,
-            }
-
-            self._mappings["y_index"] = np.arange(
-                self._state["roi"]["bottom"],
-                self._state["roi"]["bottom"]
-                + (self._state["roi"]["height"] // self._state["roi"]["y_binning"]),
-                dtype="i2",
-            )[:, None]
-            self._mappings["x_index"] = np.arange(
-                self._state["roi"]["left"],
-                self._state["roi"]["left"]
-                + (self._state["roi"]["width"] // self._state["roi"]["x_binning"]),
-                dtype="i2",
-            )[None, :]
-            self._mappings["wavelengths"] = self._gen_mapping()[None, :]
-
-            self._channel_shapes = {
-                "image": (
-                    self._state["roi"]["height"] // self._state["roi"]["y_binning"],
-                    self._state["roi"]["width"] // self._state["roi"]["x_binning"],
-                ),
-            }
-            # channel indexing is (y_index, x_index)
-
-    def get_roi(self):
-        return self._state["roi"]
-
-    def set_em_gain(self, em_gain: int):
-        self.proem.params.AdcEMGain.set_value(em_gain)
-        self._state["em_gain"] = self.proem.params.AdcEMGain.get_value()
-
-    def get_em_gain(self):
-        return self._state["em_gain"]
-
-    def set_exposure_time(self, exposure_time: float):
-        self.proem.params.ExposureTime.set_value(exposure_time)
-        self._state["exposure_time"] = self.proem.params.ExposureTime.get_value()
-
-    def get_exposure_time(self):
-        return self._state["exposure_time"]
-
-    def set_readout_count(self, readout_count: int):
-        self.proem.params.ReadoutCount.set_value(readout_count)
-        self._state["readout_count"] = self.proem.params.ReadoutCount.get_value()
-
-    def get_readout_count(self):
-        return self._state["readout_count"]
-
-    def set_adc_analog_gain(self, gain: str):
-        self.proem.params.AdcAnalogGain.set_value(getattr(PicamEnums.AdcAnalogGain, gain))
-        self._state["adc_analog_gain"] = self.proem.params.AdcAnalogGain.get_value().name
-
-    def get_adc_analog_gain(self):
-        return self._state["adc_analog_gain"]
-
-    def set_spectrometer_mode(self, mode: str):
-        if mode == "spatial":
-            # when going to spatial mode from spectral, there's not a good way to have the roi
-            # return to the previous spatial roi since I need to change horizontal mappings
-            # concurrently. I will live with this for now. It's another simple set_roi command
-            # to get it back where the user wants it.
-            self._mappings["x_index"] = np.arange(
-                self._state["roi"]["left"],
-                self._state["roi"]["left"]
-                + (self._state["roi"]["width"] // self._state["roi"]["x_binning"]),
-                dtype="i2",
-            )[None, :]
-            self._mappings["wavelengths"] = self._gen_mapping()[None, :]
-
-            self._channel_shapes = {
-                "image": (
-                    self._state["roi"]["height"] // self._state["roi"]["y_binning"],
-                    self._state["roi"]["width"] // self._state["roi"]["x_binning"],
-                ),
-            }
-            self._state["spectrometer_mode"] = mode
-        if mode == "spectral":
-            if self._state["roi"]["x_binning"] != 1:
-                print(
-                    """You're now in spectral mode and would bin spectral axis with current roi settings.
-                     Consider changing x_binning=1 via set_roi().
-                     ***leaving spectrometer_mode unchanged.*** """
-                )
+    async def update_state(self):
+        """commit parameters when it is safe to do so"""
+        while True:
+            if not self._busy:
+                if not self.proem._dev.AreParametersCommitted():
+                    self.proem.commit_parameters()
+                await asyncio.sleep(0.5)
             else:
-                self.proem.set_roi(
-                    y=0, height=512
-                )  # sets roi on the camera level, not daemon level
-                self._state["roi"] = {
-                    "left": 0,
-                    "width": 512,
-                    "bottom": self._state["roi"]["bottom"],
-                    "height": self._state["roi"]["height"],
-                    "x_binning": self._state["roi"]["x_binning"],
-                    "y_binning": self._state["roi"]["y_binning"],
-                }  # sets roi on daemon level
+                try:
+                    await asyncio.wait_for(self._not_busy_sig.wait(), 1)
+                except asyncio.TimeoutError:
+                    continue
 
-                self._mappings["x_index"] = np.arange(
-                    self._state["roi"]["left"],
-                    self._state["roi"]["left"]
-                    + (self._state["roi"]["width"] // self._state["roi"]["x_binning"]),
-                    dtype="i2",
-                )[None, :]
-                self._mappings["wavelengths"] = self._gen_mapping()[None, :]
-
-                self._channel_shapes = {
-                    "image": (
-                        self._state["roi"]["height"] // self._state["roi"]["y_binning"],
-                        self._mappings["wavelengths"].size,
-                    ),
-                }
-                self._state["spectrometer_mode"] = mode
-
-    def get_spectrometer_mode(self):
-        return self._state["spectrometer_mode"]
-
-    def set_trigger_response(self, trigger_response: str):
-        self.proem.params.TriggerResponse.set_value(
-            getattr(PicamEnums.TriggerResponse, trigger_response)
-        )
-        self._state["trigger_response"] = self.proem.params.TriggerResponse.get_value().name
-
-    def get_trigger_response(self):
-        return self._state["trigger_response"]
-
-    def set_frame_processing_method(self, method: str):
-        self._state["frame_processing_method"] = method
-
-    def get_frame_processing_method(self):
-        return self._state["frame_processing_method"]
+    async def _measure(self):
+        readouts = []  # readouts[readout][readout_frame][frame roi]
+        running = True
+        expected_readouts = self.get_readout_count()
+        wait = min(self.get_exposure_time(), 50)  # ms
+        self.proem._dev.StartAcquisition()
+        while running:
+            try:
+                # wait is blocking, so use short waits and ignore timeouts
+                available_data, status = self.proem._dev.WaitForAcquisitionUpdate(wait)
+            # except self.PicamError as e:
+            except Exception as e:
+                if e.code == self.PicamEnums.Error.TimeOutOccurred:
+                    await asyncio.sleep(0)
+                    self.logger.debug("waiting")
+                    continue
+                else:
+                    self.proem._dev.StopAcquisition()
+                    self.logger.error(exc_info=e)
+                    raise e
+            else:
+                running = status.running
+                self.logger.debug(f"running {running}, readouts {available_data.readout_count}")
+                if available_data.readout_count > 0:
+                    readouts.extend(self.proem._extract_available_data(available_data, copy=True))
+        if (actual := len(readouts)) != expected_readouts:
+            self.logger.warning(f"expected {expected_readouts} images, but got {actual}")
+        return {"mean": np.rot90(np.asarray(readouts).mean(axis=(0, 1, 2)), 1)}
 
     def _gen_mapping(self):
-        "get map corresponding to static aoi and wavelength range."
+        """get map corresponding to static aoi and wavelength range."""
         # define input paramaters
-        mm_per_pixel = 0.016
+        mm_per_pixel = self.proem.params.PixelHeight.get_value() / 1e3
         v = 200  # g/mm; grating groove spacing
         a = (v * 10**-3) ** -1  # um/g
         aoi = np.radians(self._config["grating_aoi"])
@@ -249,7 +136,124 @@ class PiProem(HasMapping, HasMeasureTrigger, IsSensor, IsDaemon):
         out = out[
             self._mappings["x_index"][0][:]
         ]  # keep horizontal mappings equal size so wt5 file doesn't get confused
-        return np.round(np.flip(out), 2)  # account for physical orientation of spectrometer
+        return np.round(out, 2)  # account for physical orientation of camera
+
+    # --- properties ------------------------------------------------------------------------------
+
+    def set_roi(self, _roi: dict[str, int]):
+        roi = ROI_UI(**_roi)
+        try:
+            # assert roi.height % roi.y_binning == 0 and roi.width % roi.x_binning == 0
+            # assert not (self._state["spectrometer_mode"] == "spectral" and roi.x_binning != 1)
+            assert roi.bottom >= roi.height
+        except AssertionError as e:
+            self.logger.error(e, exc_info=True)
+            raise e
+
+        self.proem.set_roi(**ui_to_native(roi)._asdict())
+        # register new mappings
+        # TODO: indexing is weird?
+        new = self.get_roi()  # ui
+
+        self._mappings["y_index"] = np.arange(
+            new["bottom"] - (new["height"] // new["y_binning"]),
+            new["bottom"],
+            dtype="i2",
+        )[:, None]
+        self._mappings["x_index"] = np.arange(
+            new["left"],
+            new["left"] + (new["width"] // new["x_binning"]),
+            dtype="i2",
+        )[None, :]
+        self._mappings["wavelengths"] = self._gen_mapping()[None, :]
+
+        # channel indexing is (y_index, x_index)
+        # ignore 2D shape types until https://github.com/yaq-project/yaq-python/pull/82 is implemented
+        self._channel_shapes = {
+            "mean": (
+                new["height"] // new["y_binning"],
+                new["width"] // new["x_binning"],
+            ),  # type: ignore
+        }
+
+    def get_roi(self) -> dict:
+        _roi = self.proem.params.Rois.get_value()[0]
+        roi = ROI_native(*[getattr(_roi, k) for k in ROI_native._fields])
+        return native_to_ui(roi)._asdict()
+
+    def gen_param(self, param):
+        """dynamic setter, getter creation for parameters"""
+        my_param = self.proem.params.parameters[param]
+
+        if param in self.enum_keys:
+            param_enums = list(
+                filter(lambda x: my_param.can_set(x), getattr(self.PicamEnums, param))
+            )
+            _set = lambda val: my_param.set_value(param_enums[val])
+            _get = lambda _: my_param.get_value().name
+            parameter_type = lambda: [i.name for i in param_enums]
+        else:
+            _set = lambda val: my_param.set_value(val)
+            _get = lambda _: my_param.get_value()
+            parameter_type = None
+
+        # wrap functions with error reporting
+        def get_parameter():
+            try:
+                value = _get(None)
+            except Exception as e:
+                self.logger.error(f"get {param}")
+                self.logger.error(e, exc_info=True)
+                raise e
+            return value
+
+        def set_parameter(val):
+            try:
+                _set(val)
+            except Exception as e:
+                self.logger.error(f"set {param} {val} {param_enums}")
+                self.logger.error(e, exc_info=True)
+                raise e
+
+        return set_parameter, get_parameter, parameter_type
+
+    def get_parameters(self) -> list[str]:
+        return self.parameters
+
+    def set_spectrometer_mode(self, mode: str):
+        # In its current implementation,
+        # spectrometer_mode changes the ROI to maximum along spectral axis,
+        # and is a plot hint to communicate what mapping to use
+        # future plan is to remove the automatic mapping and retain old ROI
+        # DDK 2025-06-10
+        roi = ROI_UI(**self.get_roi())
+        if mode == "spatial":
+            self._mappings["x_index"] = (
+                np.arange(0, roi.width // roi.x_binning, dtype="i2")[None, :] + roi.left
+            )
+            self._mappings["wavelengths"] = self._gen_mapping()[None, :]
+
+            self._state["spectrometer_mode"] = mode
+        if mode == "spectral":
+            if roi.x_binning == 1:
+                self.logger.error("need x_binning ==1")
+                raise ValueError
+            self.proem.set_roi(y=0, height=512)  # sets roi on the camera level, not daemon level
+            roi = ROI_UI(**self.get_roi())
+
+            self._mappings["x_index"] = (
+                np.arange(
+                    0,
+                    roi.width // roi.x_binning,
+                    dtype="i2",
+                )[None, :]
+                + roi.left
+            )
+            self._mappings["wavelengths"] = self._gen_mapping()[None, :]
+            self._state["spectrometer_mode"] = mode
+
+    def get_spectrometer_mode(self):
+        return self._state["spectrometer_mode"]
 
     def _set_temperature(self):
         self.proem.params.SensorTemperatureSetPoint.set_value(
@@ -283,33 +287,17 @@ class PiProem(HasMapping, HasMeasureTrigger, IsSensor, IsDaemon):
     def get_sensor_temperature(self):
         return self.proem.params.SensorTemperatureReading.get_value()
 
+    def get_exposure_time_units(self):
+        return "ms"
+
+    def get_adc_speed_units(self):
+        return "MHz"
+
+    def get_em_gain_limits(self):
+        return [1.0, 100.0]
+
     def close(self):
         self.proem.close()
-
-    def _grab_image(self, kwds, timeout):
-        img = self.proem.grab_image(**kwds, timeout=timeout)
-        if not isinstance(img, np.ndarray):
-            return np.asarray(img)
-        else:
-            return img
-
-    async def _measure(self):
-        kwds = {
-            "n_frames": self.get_readout_count(),
-            "exposure_time": Q_(self.get_exposure_time(), "ms"),
-        }
-        timeout = kwds["n_frames"] * kwds["exposure_time"] + Q_(50, "ms")
-        raw_arr = self._grab_image(kwds, timeout)
-        if kwds["n_frames"] != 1:
-            return {
-                "image": np.rot90(
-                    process_frames(self._state["frame_processing_method"], raw_arr), k=3
-                )
-            }
-        else:
-            return {
-                "image": np.rot90(raw_arr, k=3)
-            }  # rot90 accounts for physical rotation of camera
 
 
 if __name__ == "__main__":

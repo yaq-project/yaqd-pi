@@ -21,16 +21,6 @@ fields = [
     {"name"="height", "type"="int", "default"=512}
 ]
 
-[[types]]
-type = "enum"
-name = "spectrometer_mode_enum"
-symbols = ["spatial", "spectral"]
-
-[[types]]
-type = "enum"
-name = "frame_processing_method_enum"
-symbols = ["average", "sum"]
-
 [config]
 
 [config.make]
@@ -62,69 +52,94 @@ default = [0.36, 0.841]
 
 [state]
 
-roi.type = "proem_roi"
-roi.default = {}
-roi.doc = "The ROI."
-
-em_gain.type = "int"
-em_gain.default = 1
-#em_gain.doc = """Electron multiplication factor.\\
-#                 Note: If using over 100, read manual about careful operation.\\
-#                 Default is 1."""
-
-exposure_time.type = "float"
-exposure_time.default = 33.0
-exposure_time.doc = "Camera sensor exposure time (in milliseconds)."
-
-readout_count.type = "int"
-readout_count.default = 1
-readout_count.doc =  "Number of frames to grab in the acquisition."
-
-adc_analog_gain.type = "string"
-adc_analog_gain.default = "Low"
-# adc_analog_gain.doc = """Gain setting for output amplifier.\\
-#                         The gain options are Low, Medium, and High."""
-
-spectrometer_mode.type = "spectrometer_mode_enum"
-spectrometer_mode.default = "spatial"
-# spectrometer_mode.doc = """Toggles what mode the spectrometer is in.\\
-#                            'spatial' is 2D spatial imaging.\\
-#                           'spectral' is spectral along horizontal axis.\\
-#                            Direct consequence is how the output image array is mapped.\\
-#                            Default is 'spatial'."""
-
-trigger_response.type = "string"
-trigger_response.default = "NoResponse"
-trigger_response.doc = "Toggle camera's trigger response."
-
-frame_processing_method.type = "frame_processing_method_enum"
-frame_processing_method.default = "average"
-frame_processing_method.doc = "Choose to average or sum frames in multi-frame acquisition."
-
 [messages]
 
 set_roi.request = [{name="roi", type="proem_roi"}]
 get_roi.response = "proem_roi"
 
-set_em_gain.request = [{name="em_gain", type="int"}]
-get_em_gain.response = "int"
-
 set_exposure_time.request = [{name="exposure_time", type="float"}]
 get_exposure_time.response = "float"
+get_exposure_time_units.response = "string"
 
 set_readout_count.request = [{name="readout_count", type="int"}]
 get_readout_count.response = "int"
 
-set_adc_analog_gain.request = [{name="gain", type="string"}]
-get_adc_analog_gain.response = "string"
+set_em_gain.request = [{name="em_gain", type="int"}]
+get_em_gain.response = "int"
+get_em_gain_limits.response = {items="int", type="array"}
 
-set_spectrometer_mode.request = [{name="spectrometer_mode", type="spectrometer_mode_enum"}]
-get_spectrometer_mode.response = "spectrometer_mode_enum"
-
-set_trigger_response.request = [{name="trigger_response", type="string"}]
-get_trigger_response.response = "string"
-
-set_frame_processing_method.request = [{name="frame_processing_method", type="frame_processing_method_enum"}]
-get_frame_processing_method.response = "frame_processing_method_enum"
+set_analog_gain.request = [{name="gain", type="string"}]
+get_analog_gain.response = "string"
+get_analog_gain_types.response = [{items='string', type='array'}]
 
 get_sensor_temperature.response = "float"
+
+set_adc_quality.request = [{name="quality", type="string"}]
+get_adc_quality.response = "string"
+get_adc_quality_types.response = {items='string', type='array'}
+
+set_adc_speed.request = [{name="speed", type="float"}]
+get_adc_speed.response = "float"
+get_adc_speed_units.response = "string"
+
+[properties]
+
+[properties.temperature]
+type = "float"
+getter = "get_sensor_temperature"
+dynamic = true
+control_kind = "normal"
+record_kind = "metadata"
+
+[properties.exposure_time]
+# exposure_time.doc = "Camera sensor exposure time (in milliseconds)."
+type = "float"
+getter = "get_exposure_time"
+setter = "set_exposure_time"
+units_getter = "get_exposure_time_units"
+control_kind = "hinted"
+record_kind = "metadata"
+
+[properties.readout_count]
+type = "int"
+getter = "get_readout_count"
+setter = "set_readout_count"
+control_kind = "hinted"
+record_kind = "metadata"
+
+[properties.analog_gain]
+# adc_analog_gain.doc = """Gain setting for output amplifier.\\
+#                         The gain options are Low, Medium, and High."""
+type = "string"
+getter = "get_analog_gain"
+setter = "set_analog_gain"
+options_getter = "get_analog_gain_types"
+control_kind = "normal"
+record_kind = "metadata"
+
+[properties.em_gain]
+# em_gain.doc = """Electron multiplication factor.\\
+#                 Note: If using over 100, read manual about careful operation.\\
+#                 Default is 1."""
+type = "int"
+setter = "set_em_gain"
+getter = "get_em_gain"
+limits_getter = "get_em_gain_limits"
+control_kind = "normal"
+record_kind = "metadata"
+
+[properties.adc_quality]
+type = "string"
+getter = "get_adc_quality"
+setter = "set_adc_quality"
+options_getter = "get_adc_quality_types"
+control_kind = "normal"
+record_kind = "metadata"
+
+[properties.adc_speed]
+type = "float"
+setter = "set_adc_speed"
+getter = "get_adc_speed"
+units_getter = "get_adc_speed_units"
+control_kind = "normal"
+record_kind = "metadata"

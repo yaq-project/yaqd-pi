@@ -102,9 +102,37 @@
             "request": [],
             "response": "boolean"
         },
-        "get_adc_analog_gain": {
+        "get_adc_quality": {
             "request": [],
             "response": "string"
+        },
+        "get_adc_quality_types": {
+            "request": [],
+            "response": {
+                "items": "string",
+                "type": "array"
+            }
+        },
+        "get_adc_speed": {
+            "request": [],
+            "response": "float"
+        },
+        "get_adc_speed_units": {
+            "request": [],
+            "response": "string"
+        },
+        "get_analog_gain": {
+            "request": [],
+            "response": "string"
+        },
+        "get_analog_gain_types": {
+            "request": [],
+            "response": [
+                {
+                    "items": "string",
+                    "type": "array"
+                }
+            ]
         },
         "get_channel_mappings": {
             "doc": "Defines which mapping keys apply to which channel keys. Each channel may have zero or many mappings. Mappings must broadcast into corresponding channels.",
@@ -167,13 +195,20 @@
             "request": [],
             "response": "int"
         },
+        "get_em_gain_limits": {
+            "request": [],
+            "response": {
+                "items": "int",
+                "type": "array"
+            }
+        },
         "get_exposure_time": {
             "request": [],
             "response": "float"
         },
-        "get_frame_processing_method": {
+        "get_exposure_time_units": {
             "request": [],
-            "response": "frame_processing_method_enum"
+            "response": "string"
         },
         "get_mapping_id": {
             "doc": "Mapping ID. This integer increments every time the mapping is updated. Clients can safely check this id to verify that their cached mappings are correct, if desired.",
@@ -239,17 +274,9 @@
             "request": [],
             "response": "float"
         },
-        "get_spectrometer_mode": {
-            "request": [],
-            "response": "spectrometer_mode_enum"
-        },
         "get_state": {
             "doc": "Get version of the running daemon",
             "origin": "is-daemon",
-            "request": [],
-            "response": "string"
-        },
-        "get_trigger_response": {
             "request": [],
             "response": "string"
         },
@@ -277,7 +304,25 @@
             ],
             "response": "int"
         },
-        "set_adc_analog_gain": {
+        "set_adc_quality": {
+            "request": [
+                {
+                    "name": "quality",
+                    "type": "string"
+                }
+            ],
+            "response": "null"
+        },
+        "set_adc_speed": {
+            "request": [
+                {
+                    "name": "speed",
+                    "type": "float"
+                }
+            ],
+            "response": "null"
+        },
+        "set_analog_gain": {
             "request": [
                 {
                     "name": "gain",
@@ -304,15 +349,6 @@
             ],
             "response": "null"
         },
-        "set_frame_processing_method": {
-            "request": [
-                {
-                    "name": "frame_processing_method",
-                    "type": "frame_processing_method_enum"
-                }
-            ],
-            "response": "null"
-        },
         "set_readout_count": {
             "request": [
                 {
@@ -327,24 +363,6 @@
                 {
                     "name": "roi",
                     "type": "proem_roi"
-                }
-            ],
-            "response": "null"
-        },
-        "set_spectrometer_mode": {
-            "request": [
-                {
-                    "name": "spectrometer_mode",
-                    "type": "spectrometer_mode_enum"
-                }
-            ],
-            "response": "null"
-        },
-        "set_trigger_response": {
-            "request": [
-                {
-                    "name": "trigger_response",
-                    "type": "string"
                 }
             ],
             "response": "null"
@@ -368,47 +386,88 @@
             "response": "null"
         }
     },
-    "protocol": "pi-proem",
-    "requires": [],
-    "state": {
-        "adc_analog_gain": {
-            "default": "Low",
-            "type": "string"
+    "properties": {
+        "adc_quality": {
+            "control_kind": "normal",
+            "dynamic": true,
+            "getter": "get_adc_quality",
+            "limits_getter": null,
+            "options_getter": "get_adc_quality_types",
+            "record_kind": "metadata",
+            "setter": "set_adc_quality",
+            "type": "string",
+            "units_getter": null
+        },
+        "adc_speed": {
+            "control_kind": "normal",
+            "dynamic": true,
+            "getter": "get_adc_speed",
+            "limits_getter": null,
+            "options_getter": null,
+            "record_kind": "metadata",
+            "setter": "set_adc_speed",
+            "type": "float",
+            "units_getter": "get_adc_speed_units"
+        },
+        "analog_gain": {
+            "control_kind": "normal",
+            "dynamic": true,
+            "getter": "get_analog_gain",
+            "limits_getter": null,
+            "options_getter": "get_analog_gain_types",
+            "record_kind": "metadata",
+            "setter": "set_analog_gain",
+            "type": "string",
+            "units_getter": null
         },
         "em_gain": {
-            "default": 1,
-            "type": "int"
+            "control_kind": "normal",
+            "dynamic": true,
+            "getter": "get_em_gain",
+            "limits_getter": "get_em_gain_limits",
+            "options_getter": null,
+            "record_kind": "metadata",
+            "setter": "set_em_gain",
+            "type": "int",
+            "units_getter": null
         },
         "exposure_time": {
-            "default": 33.0,
-            "doc": "Camera sensor exposure time (in milliseconds).",
-            "type": "float"
-        },
-        "frame_processing_method": {
-            "default": "average",
-            "doc": "Choose to average or sum frames in multi-frame acquisition.",
-            "type": "frame_processing_method_enum"
+            "control_kind": "hinted",
+            "dynamic": true,
+            "getter": "get_exposure_time",
+            "limits_getter": null,
+            "options_getter": null,
+            "record_kind": "metadata",
+            "setter": "set_exposure_time",
+            "type": "float",
+            "units_getter": "get_exposure_time_units"
         },
         "readout_count": {
-            "default": 1,
-            "doc": "Number of frames to grab in the acquisition.",
-            "type": "int"
+            "control_kind": "hinted",
+            "dynamic": true,
+            "getter": "get_readout_count",
+            "limits_getter": null,
+            "options_getter": null,
+            "record_kind": "metadata",
+            "setter": "set_readout_count",
+            "type": "int",
+            "units_getter": null
         },
-        "roi": {
-            "default": {},
-            "doc": "The ROI.",
-            "type": "proem_roi"
-        },
-        "spectrometer_mode": {
-            "default": "spatial",
-            "type": "spectrometer_mode_enum"
-        },
-        "trigger_response": {
-            "default": "NoResponse",
-            "doc": "Toggle camera's trigger response.",
-            "type": "string"
+        "temperature": {
+            "control_kind": "normal",
+            "dynamic": true,
+            "getter": "get_sensor_temperature",
+            "limits_getter": null,
+            "options_getter": null,
+            "record_kind": "metadata",
+            "setter": null,
+            "type": "float",
+            "units_getter": null
         }
     },
+    "protocol": "pi-proem",
+    "requires": [],
+    "state": {},
     "traits": [
         "has-mapping",
         "has-measure-trigger",
@@ -451,22 +510,6 @@
             ],
             "name": "proem_roi",
             "type": "record"
-        },
-        {
-            "name": "spectrometer_mode_enum",
-            "symbols": [
-                "spatial",
-                "spectral"
-            ],
-            "type": "enum"
-        },
-        {
-            "name": "frame_processing_method_enum",
-            "symbols": [
-                "average",
-                "sum"
-            ],
-            "type": "enum"
         },
         {
             "fields": [
