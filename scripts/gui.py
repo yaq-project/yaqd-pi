@@ -65,7 +65,7 @@ def main(port: int, host):
             logger.error(state, exc_info=e)
             if e == ConnectionError:
                 pass
-            
+
     timer = fig.canvas.new_timer(interval=200)
 
     @timer.add_callback
