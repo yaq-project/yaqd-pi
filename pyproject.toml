@@ -6,7 +6,7 @@ build-backend = "flit_core.buildapi"
 name = "yaqd-pi"
 authors = [
     {name="Jason Scheeler"},
-    {name="Dan Kohler", email="ddkohler@wisc.edu"}
+    {name="Dan Kohler"}
 ]
 readme = "README.md"
 requires-python = ">=3.7"
