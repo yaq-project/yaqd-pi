@@ -40,8 +40,8 @@ To set these parameters, confer the configuration file schema.
 TODO
 To perform a single-point calibration, send in a known wavelength and find the position on the camera.
 
-A more convenient approximation measures displacement from the nominal ray. 
-Suppose the lens is aligned so that a normal ray hits the center of the camera.  
+A more convenient approximation measures displacement from the nominal ray.
+Suppose the lens is aligned so that a normal ray hits the center of the camera.
 We can then describe deviations from the camera center in terms of the normal ray:
 $$ \delta x = f \tan \left(\beta - \beta_0 \right) $$
 Where $\beta_0$ is the special normal ray (that in turn is related to a special color).
