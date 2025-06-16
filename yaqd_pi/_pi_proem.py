@@ -76,7 +76,11 @@ class PiProem(HasMapping, HasMeasureTrigger):
         while True:
             if not self._busy:
                 if not self.proem._dev.AreParametersCommitted():
-                    self.proem.commit_parameters()
+                    try:
+                        self.proem.commit_parameters()
+                        self.logger.info("parameters updated")
+                    except Exception as e:
+                        self.logger.error(exc_info=e, stack_info=True)
                 await asyncio.sleep(0.5)
             else:
                 try:
@@ -86,30 +90,45 @@ class PiProem(HasMapping, HasMeasureTrigger):
 
     async def _measure(self):
         readouts = []  # readouts[readout][readout_frame][frame roi]
-        running = True
         expected_readouts = self.get_readout_count()
         wait = min(self.get_exposure_time(), 50)  # ms
-        self.proem._dev.StartAcquisition()
-        while running:
+        # ensure we do not attempt measuring with uncommitted parameters:
+        if not self.proem._dev.AreParametersCommitted():
+            self.proem.commit_parameters()
+            self.logger.info("parameters updated")
+        while not readouts:  # reattempt acquisition if we didn't get anything
+            running = True
+            i = 0
             try:
-                # wait is blocking, so use short waits and ignore timeouts
-                available_data, status = self.proem._dev.WaitForAcquisitionUpdate(wait)
+                self.proem._dev.StartAcquisition()
             except Exception as e:
-                if e.code == self.PicamEnums.Error.TimeOutOccurred:
-                    await asyncio.sleep(0)
-                    self.logger.debug("waiting")
-                    continue
+                self.logger.error(exc_info=e, stack_info=True)
+                raise e
+            while running:
+                try:
+                    # wait is blocking, so use short waits and ignore timeouts
+                    available_data, status = self.proem._dev.WaitForAcquisitionUpdate(wait)
+                except Exception as e:
+                    if e.code == self.PicamEnums.Error.TimeOutOccurred:
+                        await asyncio.sleep(0)
+                        self.logger.debug(f"waits={i}")
+                        i += 1
+                        continue
+                    else:
+                        self.proem._dev.StopAcquisition()
+                        self.logger.error(exc_info=e)
+                        raise e
                 else:
-                    self.proem._dev.StopAcquisition()
-                    self.logger.error(exc_info=e)
-                    raise e
-            else:
-                running = status.running
-                self.logger.debug(f"running {running}, readouts {available_data.readout_count}")
-                if available_data.readout_count > 0:
-                    readouts.extend(self.proem._extract_available_data(available_data, copy=True))
-        if (actual := len(readouts)) != expected_readouts:
-            self.logger.warning(f"expected {expected_readouts} images, but got {actual}")
+                    running = status.running
+                    self.logger.info(
+                        f"running {bool(running)}, readouts {available_data.readout_count}"
+                    )
+                    if available_data.readout_count:
+                        readouts.extend(
+                            self.proem._extract_available_data(available_data, copy=True)
+                        )
+            if (actual := len(readouts)) != expected_readouts:
+                self.logger.warning(f"expected {expected_readouts} images, but got {actual}")
         return {"mean": np.rot90(np.asarray(readouts).mean(axis=(0, 1, 2)), 1)}
 
     def _gen_spectral_mapping(self):
@@ -186,8 +205,8 @@ class PiProem(HasMapping, HasMeasureTrigger):
             try:
                 _set(val)
             except Exception as e:
-                self.logger.error(f"set {param} {val} {param_enums}")
-                self.logger.error(e, exc_info=True)
+                self.logger.error(f"set {param} {val}")
+                self.logger.error(e, exc_info=True, stack_info=True)
                 raise e
 
         return set_parameter, get_parameter, parameter_type
