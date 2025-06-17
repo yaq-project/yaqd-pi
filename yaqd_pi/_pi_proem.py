@@ -19,7 +19,6 @@ from instrumental.drivers.cameras.picam import (
 )
 
 
-
 class PiProem(HasMapping, HasMeasureTrigger):
     _kind = "pi-proem"
 
@@ -76,23 +75,6 @@ class PiProem(HasMapping, HasMeasureTrigger):
             self._mappings["wavelengths"] = self._gen_spectral_mapping()
         self._set_temperature()
         self.logger.info("initialized.")
-
-    async def update_state(self):
-        """commit parameters when it is safe to do so"""
-        while True:
-            if not self._busy:
-                if not self.proem._dev.AreParametersCommitted():
-                    try:
-                        self.proem.commit_parameters()
-                        self.logger.info("parameters updated")
-                    except Exception as e:
-                        self.logger.error(exc_info=e, stack_info=True)
-                await asyncio.sleep(0.5)
-            else:
-                try:
-                    await asyncio.wait_for(self._not_busy_sig.wait(), 1)
-                except asyncio.TimeoutError:
-                    continue
 
     async def _measure(self):
         readouts = []  # readouts[readout][readout_frame][frame roi]
@@ -208,14 +190,23 @@ class PiProem(HasMapping, HasMeasureTrigger):
             return value
 
         def set_parameter(val):
-            try:
-                _set(val)
-            except Exception as e:
-                self.logger.error(f"set {param} {val}")
-                self.logger.error(e, exc_info=True, stack_info=True)
-                raise e
+            self._loop.create_task(self._set_when_ready(
+                _set, param, val
+            ))
 
         return set_parameter, get_parameter, parameter_type
+
+    async def _set_when_ready(self, func, param, val):
+        if self._busy:
+            await asyncio.wait_for(self._not_busy_sig.wait(), None)
+        try:
+            func(val)
+            self.proem.commit_parameters()
+            self.logger.info("parameters updated")
+        except Exception as e:
+            self.logger.error(f"set {param} {val}")
+            self.logger.error(e, exc_info=True, stack_info=True)
+            raise e
 
     def get_parameters(self) -> list[str]:
         return self.parameters
