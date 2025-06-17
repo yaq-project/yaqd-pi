@@ -16,7 +16,7 @@ from instrumental.drivers.cameras.picam import (
     PicamError,
     PicamCamera,
     PicamEnums,
-)
+)  # type: ignore
 
 
 class PiProem(HasMapping, HasMeasureTrigger):
