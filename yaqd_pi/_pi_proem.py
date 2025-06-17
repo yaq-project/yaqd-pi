@@ -190,9 +190,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
             return value
 
         def set_parameter(val):
-            self._loop.create_task(self._set_when_ready(
-                _set, param, val
-            ))
+            self._loop.create_task(self._set_when_ready(_set, param, val))
 
         return set_parameter, get_parameter, parameter_type
 
