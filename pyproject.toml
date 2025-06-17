@@ -12,7 +12,7 @@ readme = "README.md"
 requires-python = ">=3.7"
 dependencies = [
     "yaqd-core>=2021.2.0",
-    "instrumental-lib",
+    "instrumental-lib[cameras.picam]",
     "numpy",
 ]
 classifiers = [
