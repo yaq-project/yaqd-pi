@@ -3,9 +3,21 @@ __all__ = ["PiProem"]
 import asyncio
 import numpy as np
 
-from yaqd_core import HasMapping, HasMeasureTrigger
+from yaqd_core import HasMapping, HasMeasureTrigger, logging
 
 from ._roi import ROI_native, ROI_UI, ui_to_native, native_to_ui
+
+root = logging.getLogger("")
+logging.getLogger("nicelib.nicelib").setLevel(logging.WARNING)
+logging.getLogger("instrumental.drivers").setLevel(logging.WARNING)
+
+from instrumental.drivers.cameras.picam import (
+    list_instruments,
+    PicamError,
+    PicamCamera,
+    PicamEnums,
+)
+
 
 
 class PiProem(HasMapping, HasMeasureTrigger):
@@ -30,12 +42,6 @@ class PiProem(HasMapping, HasMeasureTrigger):
         # I need to import these only after our daemon logger is initiated
         # DDK 2025-06-05
         self.logger.info("initializing picam. This can take a few seconds...")
-        from instrumental.drivers.cameras.picam import (
-            list_instruments,
-            PicamError,
-            PicamCamera,
-            PicamEnums,
-        )
 
         self.PicamEnums = PicamEnums
         self.PicamError = PicamError
