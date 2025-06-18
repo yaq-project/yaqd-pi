@@ -11,18 +11,6 @@ root = logging.getLogger("")
 logging.getLogger("nicelib.nicelib").setLevel(logging.WARNING)
 logging.getLogger("instrumental.drivers").setLevel(logging.WARNING)
 
-try:
-    from instrumental.drivers.cameras.picam import (
-        list_instruments,
-        PicamError,
-        PicamCamera,
-        PicamEnums,
-    )
-except ModuleNotFoundError:
-    # if CI, we can ignore, we can ignore and at least get through the 
-    root.error(exc_info=True)
-
-
 
 class PiProem(HasMapping, HasMeasureTrigger):
     _kind = "pi-proem"
@@ -46,6 +34,12 @@ class PiProem(HasMapping, HasMeasureTrigger):
         # I need to import these only after our daemon logger is initiated
         # DDK 2025-06-05
         self.logger.info("initializing picam. This can take a few seconds...")
+        from instrumental.drivers.cameras.picam import (
+            list_instruments,
+            PicamError,
+            PicamCamera,
+            PicamEnums,
+        )
 
         self.PicamEnums = PicamEnums
         self.PicamError = PicamError
