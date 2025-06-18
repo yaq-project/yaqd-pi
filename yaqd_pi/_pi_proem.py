@@ -19,9 +19,8 @@ try:
         PicamEnums,
     )
 except ModuleNotFoundError:
-    # if CI, we can ignore, we can ignore and at least get through the 
+    # if CI, we can ignore, we can ignore and at least get through the
     root.error(exc_info=True)
-
 
 
 class PiProem(HasMapping, HasMeasureTrigger):
