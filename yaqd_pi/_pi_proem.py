@@ -11,12 +11,17 @@ root = logging.getLogger("")
 logging.getLogger("nicelib.nicelib").setLevel(logging.WARNING)
 logging.getLogger("instrumental.drivers").setLevel(logging.WARNING)
 
-from instrumental.drivers.cameras.picam import (
-    list_instruments,
-    PicamError,
-    PicamCamera,
-    PicamEnums,
-)  # type: ignore
+try:
+    from instrumental.drivers.cameras.picam import (
+        list_instruments,
+        PicamError,
+        PicamCamera,
+        PicamEnums,
+    )
+except ModuleNotFoundError:
+    # if CI, we can ignore, we can ignore and at least get through the 
+    root.error(exc_info=True)
+
 
 
 class PiProem(HasMapping, HasMeasureTrigger):

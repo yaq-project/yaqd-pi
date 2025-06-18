@@ -28,6 +28,9 @@ classifiers = [
 ]
 dynamic = ["version", "description"]
 
+[project.scripts]
+yaqd-pi-proem = "yaqd_pi._pi_proem:PiProem.main"
+
 [project.urls]
 Homepage = "https://yaq.fyi"
 Source = "https://github.com/yaq-project/yaqd-pi"
@@ -37,8 +40,9 @@ Issues = "https://github.com/yaq-project/yaqd-pi/issues"
 dev = ["black", "pre-commit"]
 gui = ["yaqc", "matplotlib", "click"]
 
-[project.scripts]
-yaqd-pi-proem = "yaqd_pi._pi_proem:PiProem.main"
+[[tool.mypy.overrides]]
+module = ["instrumental.drivers.*"]
+ignore_missing_imports = true
 
 [tool.black]
 line-length = 99
