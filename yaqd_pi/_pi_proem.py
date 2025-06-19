@@ -75,16 +75,18 @@ class PiProem(HasMapping, HasMeasureTrigger):
 
     async def _measure(self):
         readouts = []  # readouts[readout][readout_frame][frame roi]
+        self.proem.commit_parameters()
         expected_readouts = self.get_readout_count()
         wait = min(self.get_exposure_time(), 50)  # ms
         timeout = self.get_exposure_time() * 1.2  # ms
 
-        while not readouts:  # reattempt acquisition if we didn't get anything
+        actual = 0
+        while actual < expected_readouts:  # reattempt acquisition if we didn't get what we want
             running = True
             i = 0
             self._start_acquisition()
             start = time.time()
-            while running:  # grab readouts
+            while running and (actual < expected_readouts):  # grab readouts
                 try:
                     # wait is blocking, so use short waits and ignore timeouts...
                     available_data, status = self.proem._dev.WaitForAcquisitionUpdate(wait)
@@ -98,7 +100,6 @@ class PiProem(HasMapping, HasMeasureTrigger):
                             self.logger.info(
                                 "; ".join(
                                     [
-                                        f"waits={i}",
                                         f"acquisition running? {self.proem._dev.IsAcquisitionRunning()}",
                                         f"commited? {self.proem._dev.AreParametersCommitted()}",
                                         f"dt={dt:0.2f} sec",
@@ -114,38 +115,51 @@ class PiProem(HasMapping, HasMeasureTrigger):
                         continue
                     else:
                         self._stop_acquisition()
-                        self.logger.error(exc_info=e)
+                        self.logger.error("", exc_info=e)
                         raise e
                 else:
                     running = status.running
-                    self.logger.info(
-                        f"running {bool(running)}, readouts {available_data.readout_count}"
-                    )
                     if available_data.readout_count:
                         readouts.extend(
                             self.proem._extract_available_data(available_data, copy=True)
                         )
+                    self.logger.info(
+                        f"running {bool(running)}, readouts {len(readouts)}/{expected_readouts}"
+                    )
                     start = time.time()
                     i = 0
             if (actual := len(readouts)) != expected_readouts:
                 self.logger.warning(
-                    f"expected {expected_readouts} images, but got {actual}; will loop continue? {bool(not readouts)}"
+                    f"expected {expected_readouts} images, but got {actual}; will loop continue? {actual < expected_readouts}"
                 )
+            self._stop_acquisition()
+        self._stop_acquisition()
         return {"mean": np.rot90(np.asarray(readouts).mean(axis=(0, 1, 2)), 1)}
 
     def _start_acquisition(self):
+        if self.proem._dev.IsAcquisitionRunning():
+            attempts = 0
+            while True:
+                self._stop_acquisition()
+                if not self.proem._dev.IsAcquisitionRunning():
+                    break
+                attempts += 1
+                self.logger.info(f"waiting: attempts={attempts}")
+                time.sleep(0.1)
         try:
-            if not self.proem._dev.IsAcquisitionRunning():
-                self.proem._dev.StartAcquisition()
+            self.proem._dev.StartAcquisition()
         except Exception as e:
             self.logger.error("", exc_info=True, stack_info=True)
             raise e
 
     def _stop_acquisition(self):
-        try:
-            self.proem._dev.StopAcquisition()
-        except Exception as e:
-            self.logger.error("error stopping acquisition", exc_info=e)
+        if self.proem._dev.IsAcquisitionRunning():
+            try:
+                self.proem._dev.StopAcquisition()
+            except Exception as e:
+                self.logger.error("error stopping acquisition", exc_info=e)
+        else:
+            self.logger.info("tried to stop acquisition, but already stopped.")
 
 
     def _gen_spectral_mapping(self):
