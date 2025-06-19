@@ -77,7 +77,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
         readouts = []  # readouts[readout][readout_frame][frame roi]
         expected_readouts = self.get_readout_count()
         wait = min(self.get_exposure_time(), 50)  # ms
-        timeout = self.get_exposure_time() * 1.2 # ms
+        timeout = self.get_exposure_time() * 1.2  # ms
 
         while not readouts:  # reattempt acquisition if we didn't get anything
             running = True
@@ -100,13 +100,17 @@ class PiProem(HasMapping, HasMeasureTrigger):
                         if i > 100 and not (i % 100):
                             # ...however, if timeouts are excessive, the acquisition broke somehow
                             dt = time.time() - start
-                            self.logger.info("; ".join([
-                                f"waits={i}",
-                                f"acquisition running? {self.proem._dev.IsAcquisitionRunning()}",
-                                f"commited? {self.proem._dev.AreParametersCommitted()}",
-                                f"dt={dt:0.2f} sec"])
+                            self.logger.info(
+                                "; ".join(
+                                    [
+                                        f"waits={i}",
+                                        f"acquisition running? {self.proem._dev.IsAcquisitionRunning()}",
+                                        f"commited? {self.proem._dev.AreParametersCommitted()}",
+                                        f"dt={dt:0.2f} sec",
+                                    ]
+                                )
                             )
-                            if dt > timeout/1e3:
+                            if dt > timeout / 1e3:
                                 self.proem._dev.StopAcquisition()
                                 self.logger.error("timeout")
                                 running = False
@@ -129,7 +133,9 @@ class PiProem(HasMapping, HasMeasureTrigger):
                     start = time.time()
                     i = 0
             if (actual := len(readouts)) != expected_readouts:
-                self.logger.warning(f"expected {expected_readouts} images, but got {actual}; will loop continue? {bool(not readouts)}")
+                self.logger.warning(
+                    f"expected {expected_readouts} images, but got {actual}; will loop continue? {bool(not readouts)}"
+                )
         return {"mean": np.rot90(np.asarray(readouts).mean(axis=(0, 1, 2)), 1)}
 
     def _gen_spectral_mapping(self):
