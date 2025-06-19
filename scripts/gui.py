@@ -48,7 +48,7 @@ def main(port: int, host):
                 ax.set_title(f"ID {data['measurement_id']}")
                 art.set_data(data["mean"])
             except Exception as e:
-                logger.error(exc_info=e, stack_info=True)
+                logger.error("", exc_info=e, stack_info=True)
                 return
             art.set_norm(Normalize())
             fig.canvas.draw_idle()
@@ -63,7 +63,7 @@ def main(port: int, host):
             update_line(measured)
         except Exception as e:
             logger.error(state, exc_info=e)
-            if e == ConnectionError:
+            if e == ConnectionError or e == ConnectionRefusedError:
                 pass
 
     timer = fig.canvas.new_timer(interval=200)
