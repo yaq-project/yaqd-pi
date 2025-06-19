@@ -214,7 +214,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
             param_enums = list(
                 filter(lambda x: my_param.can_set(x), getattr(self.PicamEnums, param))
             )
-            _set = lambda val: my_param.set_value(param_enums[val])
+            _set = lambda val: my_param.set_value([i for i in param_enums if i.name == val][0])
             _get = lambda _: my_param.get_value().name
             parameter_type = lambda: [i.name for i in param_enums]
         else:
