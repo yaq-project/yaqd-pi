@@ -82,12 +82,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
         while not readouts:  # reattempt acquisition if we didn't get anything
             running = True
             i = 0
-            try:
-                if not self.proem._dev.IsAcquisitionRunning():
-                    self.proem._dev.StartAcquisition()
-            except Exception as e:
-                self.logger.error("", exc_info=True, stack_info=True)
-                raise e
+            self._start_acquisition()
             start = time.time()
             while running:  # grab readouts
                 try:
@@ -111,14 +106,14 @@ class PiProem(HasMapping, HasMeasureTrigger):
                                 )
                             )
                             if dt > timeout / 1e3:
-                                self.proem._dev.StopAcquisition()
+                                self._stop_acquisition()
                                 self.logger.error("timeout")
                                 running = False
                         else:
                             self.logger.debug(f"waits={i}")
                         continue
                     else:
-                        self.proem._dev.StopAcquisition()
+                        self._stop_acquisition()
                         self.logger.error(exc_info=e)
                         raise e
                 else:
@@ -137,6 +132,21 @@ class PiProem(HasMapping, HasMeasureTrigger):
                     f"expected {expected_readouts} images, but got {actual}; will loop continue? {bool(not readouts)}"
                 )
         return {"mean": np.rot90(np.asarray(readouts).mean(axis=(0, 1, 2)), 1)}
+
+    def _start_acquisition(self):
+        try:
+            if not self.proem._dev.IsAcquisitionRunning():
+                self.proem._dev.StartAcquisition()
+        except Exception as e:
+            self.logger.error("", exc_info=True, stack_info=True)
+            raise e
+
+    def _stop_acquisition(self):
+        try:
+            self.proem._dev.StopAcquisition()
+        except Exception as e:
+            self.logger.error("error stopping acquisition", exc_info=e)
+
 
     def _gen_spectral_mapping(self):
         """get map corresponding to static aoi and wavelength range."""
