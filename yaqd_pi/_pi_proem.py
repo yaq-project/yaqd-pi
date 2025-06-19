@@ -161,7 +161,6 @@ class PiProem(HasMapping, HasMeasureTrigger):
         else:
             self.logger.info("tried to stop acquisition, but already stopped.")
 
-
     def _gen_spectral_mapping(self):
         """get map corresponding to static aoi and wavelength range."""
         spec = self._config["spectrometer"]
