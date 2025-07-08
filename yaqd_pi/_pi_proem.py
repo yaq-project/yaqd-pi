@@ -101,7 +101,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
                                 "; ".join(
                                     [
                                         f"acquisition running? {self.proem._dev.IsAcquisitionRunning()}",
-                                        f"commited? {self.proem._dev.AreParametersCommitted()}",
+                                        # f"commited? {self.proem._dev.AreParametersCommitted()}",
                                         f"dt={dt:0.2f} sec",
                                     ]
                                 )
@@ -137,10 +137,13 @@ class PiProem(HasMapping, HasMeasureTrigger):
         readouts = np.asarray(readouts)
         mean = readouts.mean(axis=(0, 1, 2))
         if np.prod(readouts.shape[:3]) > 2:  # replace hot pixels with median value
-            hot = (readouts.max(axis=(0, 1, 2)) / mean) > 3
-            median = np.median(readouts, axis=(0, 1, 2))
-            mean[hot] = median[hot]
-            self.logger.info(f"number of hot pixels: {hot.sum()}")
+            maxes = readouts.max(axis=(0, 1, 2))
+            mean_without_max = (mean * actual - maxes) / (actual-1)
+            hot = maxes / mean_without_max > 3
+            self.logger.info(f"{hot.sum()} hot pixels")
+            # median = np.median(readouts, axis=(0, 1, 2))
+            mean[hot] = mean_without_max[hot]
+            self.logger.info(f"hot values: {maxes[hot]}, corrected to: {mean[hot]}")
         return {"mean": np.rot90(mean, 1)}
 
     def _start_acquisition(self):
