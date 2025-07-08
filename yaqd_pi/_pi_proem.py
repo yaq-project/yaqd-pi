@@ -138,7 +138,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
         mean = readouts.mean(axis=(0, 1, 2))
         if np.prod(readouts.shape[:3]) > 2:  # replace hot pixels with median value
             maxes = readouts.max(axis=(0, 1, 2))
-            mean_without_max = (mean * actual - maxes) / (actual-1)
+            mean_without_max = (mean * actual - maxes) / (actual - 1)
             hot = maxes / mean_without_max > 3
             self.logger.info(f"{hot.sum()} hot pixels")
             # median = np.median(readouts, axis=(0, 1, 2))
