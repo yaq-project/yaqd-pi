@@ -25,7 +25,9 @@ def main(port: int, host):
     x = cam.get_mappings()["x_index"]
     y = cam.get_mappings()["y_index"]
 
-    fig, (ax, opt1, opt2, opt3) = plt.subplots(nrows=4, height_ratios=[10, 1, 1, 1], gridspec_kw={"hspace":0.1})
+    fig, (ax, opt1, opt2, opt3) = plt.subplots(
+        nrows=4, height_ratios=[10, 1, 1, 1], gridspec_kw={"hspace": 0.1}
+    )
 
     try:
         y0 = cam.get_measured()["mean"]
@@ -37,7 +39,9 @@ def main(port: int, host):
     integration = Slider(
         opt1, "integration time (ms)", 33, 1e3, valstep=1, valinit=cam.get_exposure_time()
     )
-    acquisition = Slider(opt2, "acquisitions (2^x)", 0, 8, valinit=int(np.log2(cam.get_readout_count())), valstep=1)
+    acquisition = Slider(
+        opt2, "acquisitions (2^x)", 0, 8, valinit=int(np.log2(cam.get_readout_count())), valstep=1
+    )
     measure_button = CheckButtons(opt3, labels=["call measure"], label_props=dict(fontsize=[20]))
 
     state = {"current": 0, "next": 0}
