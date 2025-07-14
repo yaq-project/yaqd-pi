@@ -1,5 +1,5 @@
 from matplotlib.widgets import Slider, CheckButtons
-from matplotlib.colors import Normalize
+from matplotlib.colors import Normalize, LogNorm
 import matplotlib.pyplot as plt
 import yaqc
 import numpy as np
@@ -8,6 +8,7 @@ import logging
 
 
 log_level = logging.INFO
+norm = Normalize
 
 
 @click.command()
@@ -24,19 +25,19 @@ def main(port: int, host):
     x = cam.get_mappings()["x_index"]
     y = cam.get_mappings()["y_index"]
 
-    fig, (ax, opt1, opt2, opt3) = plt.subplots(nrows=4, height_ratios=[10, 1, 1, 1])
+    fig, (ax, opt1, opt2, opt3) = plt.subplots(nrows=4, height_ratios=[10, 1, 1, 1], gridspec_kw={"hspace":0.1})
 
     try:
         y0 = cam.get_measured()["mean"]
     except KeyError:
         y0 = np.zeros((x * y).shape)
-    art = ax.matshow(y0)
+    art = ax.matshow(y0, cmap="viridis")
     fig.colorbar(art, ax=ax)
 
     integration = Slider(
         opt1, "integration time (ms)", 33, 1e3, valstep=1, valinit=cam.get_exposure_time()
     )
-    acquisition = Slider(opt2, "acquisitions (2^x)", 0, 8, valinit=0, valstep=1)
+    acquisition = Slider(opt2, "acquisitions (2^x)", 0, 8, valinit=int(np.log2(cam.get_readout_count())), valstep=1)
     measure_button = CheckButtons(opt3, labels=["call measure"], label_props=dict(fontsize=[20]))
 
     state = {"current": 0, "next": 0}
@@ -50,7 +51,7 @@ def main(port: int, host):
             except Exception as e:
                 logger.error("", exc_info=e, stack_info=True)
                 return
-            art.set_norm(Normalize())
+            art.set_norm(norm())
             fig.canvas.draw_idle()
 
     def submit(measure=False):
