@@ -139,7 +139,9 @@ class PiProem(HasMapping, HasMeasureTrigger):
         if np.prod(readouts.shape[:3]) > 2:  # replace hot pixels with median value
             maxes = readouts.max(axis=(0, 1, 2))
             mean_without_max = (mean * actual - maxes) / (actual - 1)
-            hot = maxes / mean_without_max > 3
+            hot = ((maxes-400) / (mean_without_max-400) > 3) & (maxes > 800)
+            # 400 subtraction helps with sensitivity; getting too close to true baseline might create divergence due to zero counts
+            # second clause is to avoid accidentally removing noise from baseline
             self.logger.info(f"{hot.sum()} hot pixels")
             # median = np.median(readouts, axis=(0, 1, 2))
             mean[hot] = mean_without_max[hot]
