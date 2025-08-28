@@ -104,14 +104,14 @@ getter = "get_exposure_time"
 setter = "set_exposure_time"
 units_getter = "get_exposure_time_units"
 control_kind = "hinted"
-record_kind = "metadata"
+record_kind = "data"
 
 [properties.readout_count]
 type = "int"
 getter = "get_readout_count"
 setter = "set_readout_count"
 control_kind = "hinted"
-record_kind = "metadata"
+record_kind = "data"
 
 [properties.analog_gain]
 type = "string"

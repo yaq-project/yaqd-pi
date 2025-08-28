@@ -47,7 +47,7 @@ def main(port: int, host):
     state = {"current": 0, "next": 0}
     title = "ID {}"
 
-    def update_line(data):
+    def update_plot(data):
         if ax.get_title() != title.format(data["measurement_id"]):
             try:
                 ax.set_title(f"ID {data['measurement_id']}")
@@ -65,7 +65,7 @@ def main(port: int, host):
                     state["next"] = cam.measure()
             measured = cam.get_measured()
             state["current"] = measured["measurement_id"]
-            update_line(measured)
+            update_plot(measured)
         except Exception as e:
             logger.error(state, exc_info=e)
             if e == ConnectionError or e == ConnectionRefusedError:
