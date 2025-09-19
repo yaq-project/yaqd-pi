@@ -84,7 +84,8 @@ class PiProem(HasMapping, HasMeasureTrigger):
         while actual < expected_readouts:  # reattempt acquisition if we didn't get what we want
             running = True
             i = 0
-            await self._start_acquisition()
+            self._start_acquisition()
+            self.logger.info("here")
             start = time.time()
             while running and (actual < expected_readouts):  # grab readouts
                 try:
@@ -101,13 +102,12 @@ class PiProem(HasMapping, HasMeasureTrigger):
                                 "; ".join(
                                     [
                                         f"acquisition running? {self.proem._dev.IsAcquisitionRunning()}",
-                                        # f"commited? {self.proem._dev.AreParametersCommitted()}",
                                         f"dt={dt:0.2f} sec",
                                     ]
                                 )
                             )
                             if dt > timeout / 1e3:
-                                self.logger.info("measure is taking too long; aborting")
+                                self.logger.info("measure is taking too long; retrying measurement")
                                 await self._stop_acquisition()
                                 self.logger.error("timeout")
                                 break
@@ -124,7 +124,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
                         readouts.extend(
                             self.proem._extract_available_data(available_data, copy=True)
                         )
-                    self.logger.info(
+                    self.logger.debug(
                         f"running {bool(running)}, readouts {len(readouts)}/{expected_readouts}"
                     )
                     start = time.time()
@@ -132,6 +132,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
                 actual = len(readouts)
             await self._stop_acquisition()
         readouts = np.asarray(readouts)
+        self.logger.info(readouts.shape)
         mean = readouts.mean(axis=(0, 1, 2))
         if np.prod(readouts.shape[:3]) > 2:  # replace hot pixels with median value
             maxes = readouts.max(axis=(0, 1, 2))
@@ -145,33 +146,33 @@ class PiProem(HasMapping, HasMeasureTrigger):
             self.logger.info(f"hot values: {maxes[hot]}, corrected to: {mean[hot]}")
         return {"mean": np.rot90(mean, 1)}
 
-    async def _start_acquisition(self):
-        await self._stop_acquisition()
+    async def _stop_acquisition(self):
+        try:
+            self.proem._dev.StopAcquisition()
+        except Exception as e:
+            self.logger.error("error stopping acquisition", exc_info=e)
+            raise e
+        attempts = 0
+        running = True
+        while running:
+            await asyncio.sleep(0)
+            try:
+                _, status = self.proem._dev.WaitForAcquisitionUpdate(50)
+                running = status.running
+            except Exception as e:
+                if e.code == self.PicamEnums.Error.TimeOutOccurred:
+                    attempts += 1
+                    running1 = self.proem._dev.IsAcquisitionRunning()
+                    self.logger.info(f"waiting: attempts={attempts} {not running1}")
+                    if not running1:
+                        break
+
+    def _start_acquisition(self):
         try:
             self.proem._dev.StartAcquisition()
         except Exception as e:
             self.logger.error("", exc_info=True, stack_info=True)
             raise e
-
-    async def _stop_acquisition(self):
-        if self.proem._dev.IsAcquisitionRunning():
-            try:
-                self.proem._dev.StopAcquisition()
-            except Exception as e:
-                self.logger.error("error stopping acquisition", exc_info=e)
-            running = True
-            attempts = 0
-            while running:
-                try:
-                    _, status = self.proem._dev.WaitForAcquisitionUpdate(10)
-                except Exception as e:
-                    if e.code == self.PicamEnums.Error.TimeOutOccurred:
-                        pass
-                running = status.running
-                self.logger.info(f"waiting: attempts={attempts}")
-                await asyncio.sleep(0.1)
-        else:
-            self.logger.debug("tried to stop acquisition, but already stopped.")
 
     def _gen_spectral_mapping(self):
         """get map corresponding to static aoi and wavelength range."""

@@ -51,11 +51,12 @@ def main(port: int, host):
         if ax.get_title() != title.format(data["measurement_id"]):
             try:
                 ax.set_title(f"ID {data['measurement_id']}")
-                art.set_data(data["mean"])
+                if data["measurement_id"]:
+                    art.set_data(data["mean"])
+                    art.set_norm(norm())
             except Exception as e:
                 logger.error("", exc_info=e, stack_info=True)
                 return
-            art.set_norm(norm())
             fig.canvas.draw_idle()
 
     def submit(measure=False):
@@ -65,7 +66,8 @@ def main(port: int, host):
                     state["next"] = cam.measure()
             measured = cam.get_measured()
             state["current"] = measured["measurement_id"]
-            update_plot(measured)
+            if state["current"]:
+                update_plot(measured)
         except Exception as e:
             logger.error(state, exc_info=e)
             if e == ConnectionError or e == ConnectionRefusedError:
