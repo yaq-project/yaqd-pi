@@ -107,7 +107,9 @@ class PiProem(HasMapping, HasMeasureTrigger):
                                 )
                             )
                             if dt > timeout / 1e3:
-                                self.logger.info("measure is taking too long; retrying measurement")
+                                self.logger.info(
+                                    "measure is taking too long; retrying measurement"
+                                )
                                 await self._stop_acquisition()
                                 self.logger.error("timeout")
                                 break
