@@ -84,7 +84,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
         while actual < expected_readouts:  # reattempt acquisition if we didn't get what we want
             running = True
             i = 0
-            self._start_acquisition()
+            await self._start_acquisition()
             start = time.time()
             while running and (actual < expected_readouts):  # grab readouts
                 try:
@@ -107,14 +107,15 @@ class PiProem(HasMapping, HasMeasureTrigger):
                                 )
                             )
                             if dt > timeout / 1e3:
-                                self._stop_acquisition()
+                                self.logger.info("measure is taking too long; aborting")
+                                await self._stop_acquisition()
                                 self.logger.error("timeout")
-                                running = False
+                                break
                         else:
                             self.logger.debug(f"waits={i}")
                         continue
                     else:
-                        self._stop_acquisition()
+                        await self._stop_acquisition()
                         self.logger.error("", exc_info=e)
                         raise e
                 else:
@@ -128,12 +129,8 @@ class PiProem(HasMapping, HasMeasureTrigger):
                     )
                     start = time.time()
                     i = 0
-            if (actual := len(readouts)) != expected_readouts:
-                self.logger.warning(
-                    f"expected {expected_readouts} images, but got {actual}; will loop continue? {actual < expected_readouts}"
-                )
-            self._stop_acquisition()
-        self._stop_acquisition()
+                actual = len(readouts)
+            await self._stop_acquisition()
         readouts = np.asarray(readouts)
         mean = readouts.mean(axis=(0, 1, 2))
         if np.prod(readouts.shape[:3]) > 2:  # replace hot pixels with median value
@@ -148,28 +145,31 @@ class PiProem(HasMapping, HasMeasureTrigger):
             self.logger.info(f"hot values: {maxes[hot]}, corrected to: {mean[hot]}")
         return {"mean": np.rot90(mean, 1)}
 
-    def _start_acquisition(self):
-        if self.proem._dev.IsAcquisitionRunning():
-            attempts = 0
-            while True:
-                self._stop_acquisition()
-                if not self.proem._dev.IsAcquisitionRunning():
-                    break
-                attempts += 1
-                self.logger.info(f"waiting: attempts={attempts}")
-                time.sleep(0.1)
+    async def _start_acquisition(self):
+        await self._stop_acquisition()
         try:
             self.proem._dev.StartAcquisition()
         except Exception as e:
             self.logger.error("", exc_info=True, stack_info=True)
             raise e
 
-    def _stop_acquisition(self):
+    async def _stop_acquisition(self):
         if self.proem._dev.IsAcquisitionRunning():
             try:
                 self.proem._dev.StopAcquisition()
             except Exception as e:
                 self.logger.error("error stopping acquisition", exc_info=e)
+            running = True
+            attempts = 0
+            while running:
+                try:
+                    _, status = self.proem._dev.WaitForAcquisitionUpdate(10)
+                except Exception as e:
+                    if e.code == self.PicamEnums.Error.TimeOutOccurred:
+                        pass
+                running = status.running
+                self.logger.info(f"waiting: attempts={attempts}")
+                await asyncio.sleep(0.1)
         else:
             self.logger.debug("tried to stop acquisition, but already stopped.")
 
