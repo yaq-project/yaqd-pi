@@ -1,5 +1,5 @@
 from matplotlib.widgets import Slider, CheckButtons
-from matplotlib.colors import Normalize
+from matplotlib.colors import Normalize, LogNorm
 import matplotlib.pyplot as plt
 import yaqc
 import numpy as np
@@ -8,6 +8,7 @@ import logging
 
 
 log_level = logging.INFO
+norm = Normalize
 
 
 @click.command()
@@ -24,33 +25,38 @@ def main(port: int, host):
     x = cam.get_mappings()["x_index"]
     y = cam.get_mappings()["y_index"]
 
-    fig, (ax, opt1, opt2, opt3) = plt.subplots(nrows=4, height_ratios=[10, 1, 1, 1])
+    fig, (ax, opt1, opt2, opt3) = plt.subplots(
+        nrows=4, height_ratios=[10, 1, 1, 1], gridspec_kw={"hspace": 0.1}
+    )
 
     try:
         y0 = cam.get_measured()["mean"]
     except KeyError:
         y0 = np.zeros((x * y).shape)
-    art = ax.matshow(y0)
+    art = ax.matshow(y0, cmap="viridis")
     fig.colorbar(art, ax=ax)
 
     integration = Slider(
         opt1, "integration time (ms)", 33, 1e3, valstep=1, valinit=cam.get_exposure_time()
     )
-    acquisition = Slider(opt2, "acquisitions (2^x)", 0, 8, valinit=0, valstep=1)
+    acquisition = Slider(
+        opt2, "acquisitions (2^x)", 0, 8, valinit=int(np.log2(cam.get_readout_count())), valstep=1
+    )
     measure_button = CheckButtons(opt3, labels=["call measure"], label_props=dict(fontsize=[20]))
 
     state = {"current": 0, "next": 0}
     title = "ID {}"
 
-    def update_line(data):
+    def update_plot(data):
         if ax.get_title() != title.format(data["measurement_id"]):
             try:
                 ax.set_title(f"ID {data['measurement_id']}")
-                art.set_data(data["mean"])
+                if data["measurement_id"]:
+                    art.set_data(data["mean"])
+                    art.set_norm(norm())
             except Exception as e:
-                logger.error(exc_info=e, stack_info=True)
+                logger.error("", exc_info=e, stack_info=True)
                 return
-            art.set_norm(Normalize())
             fig.canvas.draw_idle()
 
     def submit(measure=False):
@@ -60,10 +66,11 @@ def main(port: int, host):
                     state["next"] = cam.measure()
             measured = cam.get_measured()
             state["current"] = measured["measurement_id"]
-            update_line(measured)
+            if state["current"]:
+                update_plot(measured)
         except Exception as e:
             logger.error(state, exc_info=e)
-            if e == ConnectionError:
+            if e == ConnectionError or e == ConnectionRefusedError:
                 pass
 
     timer = fig.canvas.new_timer(interval=200)

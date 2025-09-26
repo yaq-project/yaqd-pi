@@ -438,7 +438,7 @@
             "getter": "get_exposure_time",
             "limits_getter": null,
             "options_getter": null,
-            "record_kind": "metadata",
+            "record_kind": "data",
             "setter": "set_exposure_time",
             "type": "float",
             "units_getter": "get_exposure_time_units"
@@ -449,7 +449,7 @@
             "getter": "get_readout_count",
             "limits_getter": null,
             "options_getter": null,
-            "record_kind": "metadata",
+            "record_kind": "data",
             "setter": "set_readout_count",
             "type": "int",
             "units_getter": null
