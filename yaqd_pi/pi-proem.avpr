@@ -6,11 +6,6 @@
             "origin": "is-daemon",
             "type": "boolean"
         },
-        "grating_aoi": {
-            "default": 5,
-            "doc": "Angle of incident beam on grating face in deg. \\\n         Default is 5.",
-            "type": "float"
-        },
         "log_level": {
             "default": "info",
             "doc": "Set daemon log-level.",
@@ -77,14 +72,13 @@
                 "string"
             ]
         },
-        "spectral_range": {
-            "default": [
-                0.36,
-                0.841
-            ],
-            "doc": "The desired range of wavelengths that is displayed on the spectral \\\n         axis of the detector. Units of microns. First item in the list is \\\n        the bluest color, second item is the reddest e.g. [0.360, 0.841]",
-            "items": "float",
-            "type": "array"
+        "spectrometer": {
+            "default": null,
+            "doc": "If you have a spectrometer enter the params here.",
+            "type": [
+                "null",
+                "spectral_mapping"
+            ]
         }
     },
     "doc": "",
@@ -262,6 +256,13 @@
                 "type": "int"
             }
         },
+        "get_parameters": {
+            "request": [],
+            "response": {
+                "items": "string",
+                "type": "array"
+            }
+        },
         "get_readout_count": {
             "request": [],
             "response": "int"
@@ -437,7 +438,7 @@
             "getter": "get_exposure_time",
             "limits_getter": null,
             "options_getter": null,
-            "record_kind": "metadata",
+            "record_kind": "data",
             "setter": "set_exposure_time",
             "type": "float",
             "units_getter": "get_exposure_time_units"
@@ -448,7 +449,7 @@
             "getter": "get_readout_count",
             "limits_getter": null,
             "options_getter": null,
-            "record_kind": "metadata",
+            "record_kind": "data",
             "setter": "set_readout_count",
             "type": "int",
             "units_getter": null
@@ -475,6 +476,42 @@
         "is-sensor"
     ],
     "types": [
+        {
+            "fields": [
+                {
+                    "doc": "grating groove density (per mm)",
+                    "name": "gpmm",
+                    "type": "float"
+                },
+                {
+                    "doc": "Angle of incident beam on grating face (deg).  If grating is transmissive, account for refraction.",
+                    "name": "grating_aoi_deg",
+                    "type": "float"
+                },
+                {
+                    "doc": "focal length of focusing lens (mm)",
+                    "name": "focal_length",
+                    "type": "float"
+                },
+                {
+                    "name": "position_offset",
+                    "type": "float"
+                },
+                {
+                    "default": 1,
+                    "doc": "Diffraction order",
+                    "name": "order",
+                    "type": "int"
+                },
+                {
+                    "doc": "Image index along which the spectrum is dispersed (0 or 1)",
+                    "name": "axis",
+                    "type": "int"
+                }
+            ],
+            "name": "spectral_mapping",
+            "type": "record"
+        },
         {
             "fields": [
                 {

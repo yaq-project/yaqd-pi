@@ -11,6 +11,20 @@ PyPI = "https://pypi.org/project/yaqd-pi"
 
 [[types]]
 type = "record"
+name = "spectral_mapping"
+fields = [
+    {"name"="gpmm", "type"="float", "doc"="grating groove density (per mm)"},
+    {"name"="grating_aoi_deg", "type"="float", "doc"="Angle of incident beam on grating face (deg).  If grating is transmissive, account for refraction."},
+    {"name"="focal_length", "type"="float", "doc"="focal length of focusing lens (mm)"},
+    # {"name"="grating_refractive_index", "type"="float", "default"=1.6, "doc"="grating index of refraction"},
+    # {"name"="spectral_range_nm", "type"="array", items="float", "default"=[0.36, 0.841], "doc"="The desired range of wavelengths that is displayed on the spectral axis of the detector. Units of microns. First item in the list is the bluest color, second item is the reddest"},
+    {"name"="position_offset", "type"="float"},
+    {"name"="order", "type"="int", "default"=1, "doc"="Diffraction order"},
+    {"name"="axis", "type"="int", "doc"="Image index along which the spectrum is dispersed (0 or 1)"},
+]
+
+[[types]]
+type = "record"
 name = "proem_roi"
 fields = [
     {"name"="x_binning", "type"="int", "default"=1},
@@ -36,19 +50,10 @@ doc = """Set the sensor temperature in deg C. \\
         Do not set below -80.0 C"""
 default = -70.0
 
-[config.grating_aoi]
-type = "float"
-doc = """Angle of incident beam on grating face in deg. \\
-         Default is 5."""
-default = 5
-
-[config.spectral_range]
-type = "array"
-items = "float"
-doc = """The desired range of wavelengths that is displayed on the spectral \\
-         axis of the detector. Units of microns. First item in the list is \\
-        the bluest color, second item is the reddest e.g. [0.360, 0.841]"""
-default = [0.36, 0.841]
+[config.spectrometer]
+type = ["null", "spectral_mapping"]
+doc = "If you have a spectrometer enter the params here."
+default = "__null__"
 
 [state]
 
@@ -74,6 +79,8 @@ get_analog_gain_types.response = [{items='string', type='array'}]
 
 get_sensor_temperature.response = "float"
 
+get_parameters.response = {items="string", type="array"}
+
 set_adc_quality.request = [{name="quality", type="string"}]
 get_adc_quality.response = "string"
 get_adc_quality_types.response = {items='string', type='array'}
@@ -92,24 +99,21 @@ control_kind = "normal"
 record_kind = "metadata"
 
 [properties.exposure_time]
-# exposure_time.doc = "Camera sensor exposure time (in milliseconds)."
 type = "float"
 getter = "get_exposure_time"
 setter = "set_exposure_time"
 units_getter = "get_exposure_time_units"
 control_kind = "hinted"
-record_kind = "metadata"
+record_kind = "data"
 
 [properties.readout_count]
 type = "int"
 getter = "get_readout_count"
 setter = "set_readout_count"
 control_kind = "hinted"
-record_kind = "metadata"
+record_kind = "data"
 
 [properties.analog_gain]
-# adc_analog_gain.doc = """Gain setting for output amplifier.\\
-#                         The gain options are Low, Medium, and High."""
 type = "string"
 getter = "get_analog_gain"
 setter = "set_analog_gain"
@@ -118,9 +122,6 @@ control_kind = "normal"
 record_kind = "metadata"
 
 [properties.em_gain]
-# em_gain.doc = """Electron multiplication factor.\\
-#                 Note: If using over 100, read manual about careful operation.\\
-#                 Default is 1."""
 type = "int"
 setter = "set_em_gain"
 getter = "get_em_gain"

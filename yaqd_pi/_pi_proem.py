@@ -2,12 +2,15 @@ __all__ = ["PiProem"]
 
 import asyncio
 import numpy as np
-from time import sleep
+import time
 
-from yaqd_core import HasMapping, HasMeasureTrigger
+from yaqd_core import HasMapping, HasMeasureTrigger, logging
 
-from scipy.interpolate import interp1d  # type: ignore
 from ._roi import ROI_native, ROI_UI, ui_to_native, native_to_ui
+
+root = logging.getLogger("")
+logging.getLogger("nicelib.nicelib").setLevel(logging.WARNING)
+logging.getLogger("instrumental.drivers").setLevel(logging.WARNING)
 
 
 class PiProem(HasMapping, HasMeasureTrigger):
@@ -17,26 +20,24 @@ class PiProem(HasMapping, HasMeasureTrigger):
         super().__init__(name, config, config_filepath)
 
         if config.get("emulate"):
-            from instrumental.drivers.cameras.picam import sdk  # type: ignore
+            from instrumental.drivers.cameras.picam import sdk
 
             self.logger.info("Starting Emulated camera")
             sdk.connect_demo_camera(PicamEnums.Model.ProEMHS512BExcelon, "demo")
 
+        # channels
         self._channel_names = ["mean"]
         self._channel_units = {"mean": "counts"}
+        self._channel_mappings = {"mean": ["y_index", "x_index"]}
+        self._mapping_units = {"y_index": "None", "x_index": "None"}
 
-        self._channel_mappings = {"mean": ["y_index", "x_index", "wavelengths"]}
-        self._mapping_units = {"y_index": "None", "x_index": "None", "wavelengths": "nm"}
-
-        # somehow instrumental overrides our logger...
-        # I need to import these only after our daemon logger is initiated
-        # DDK 2025-06-05
+        self.logger.info("initializing picam. This can take a few seconds...")
         from instrumental.drivers.cameras.picam import (
             list_instruments,
             PicamError,
             PicamCamera,
             PicamEnums,
-        )  # type: ignore
+        )
 
         self.PicamEnums = PicamEnums
         self.PicamError = PicamError
@@ -61,118 +62,156 @@ class PiProem(HasMapping, HasMeasureTrigger):
         self.set_adc_speed, self.get_adc_speed, _ = self.gen_param("AdcSpeed")
         self.set_em_gain, self.get_em_gain, _ = self.gen_param("AdcEMGain")
 
-        self.set_roi(ROI_UI()._asdict())
-        # make the static wavelengths to pixel mapping an attribute of the daemon;
-        # don't update self._mappings as this changes between spatial and spectral
-        self._mappings["wavelengths"] = self._gen_mapping()
         # initialize with default parameters
-        self._set_temperature()
+        self.set_roi(ROI_UI()._asdict())
 
-    async def update_state(self):
-        """commit parameters when it is safe to do so"""
-        while True:
-            if not self._busy:
-                if not self.proem._dev.AreParametersCommitted():
-                    self.proem.commit_parameters()
-                await asyncio.sleep(0.5)
-            else:
-                try:
-                    await asyncio.wait_for(self._not_busy_sig.wait(), 1)
-                except asyncio.TimeoutError:
-                    continue
+        if self._config["spectrometer"] is not None:
+            self.logger.info("we have a spectrometer")
+            self._mapping_units["wavelengths"] = "nm"
+            self._channel_mappings["mean"].append("wavelengths")
+            self._mappings["wavelengths"] = self._gen_spectral_mapping()
+        self._set_temperature()
+        self.logger.info("initialized.")
 
     async def _measure(self):
         readouts = []  # readouts[readout][readout_frame][frame roi]
-        running = True
+        self.proem.commit_parameters()
         expected_readouts = self.get_readout_count()
         wait = min(self.get_exposure_time(), 50)  # ms
-        self.proem._dev.StartAcquisition()
+        timeout = self.get_exposure_time() * 1.2  # ms
+
+        actual = 0
+        while actual < expected_readouts:  # reattempt acquisition if we didn't get what we want
+            running = True
+            i = 0
+            self._start_acquisition()
+            self.logger.info("here")
+            start = time.time()
+            while running and (actual < expected_readouts):  # grab readouts
+                try:
+                    # wait is blocking, so use short waits and ignore timeouts...
+                    available_data, status = self.proem._dev.WaitForAcquisitionUpdate(wait)
+                except Exception as e:
+                    if e.code == self.PicamEnums.Error.TimeOutOccurred:
+                        i += 1
+                        await asyncio.sleep(0)
+                        if i > 100 and not (i % 100):
+                            # ...however, if timeouts are excessive, the acquisition broke somehow
+                            dt = time.time() - start
+                            self.logger.info(
+                                "; ".join(
+                                    [
+                                        f"acquisition running? {self.proem._dev.IsAcquisitionRunning()}",
+                                        f"dt={dt:0.2f} sec",
+                                    ]
+                                )
+                            )
+                            if dt > timeout / 1e3:
+                                self.logger.info(
+                                    "measure is taking too long; retrying measurement"
+                                )
+                                await self._stop_acquisition()
+                                self.logger.error("timeout")
+                                break
+                        else:
+                            self.logger.debug(f"waits={i}")
+                        continue
+                    else:
+                        await self._stop_acquisition()
+                        self.logger.error("", exc_info=e)
+                        raise e
+                else:
+                    running = status.running
+                    if available_data.readout_count:
+                        readouts.extend(
+                            self.proem._extract_available_data(available_data, copy=True)
+                        )
+                    self.logger.debug(
+                        f"running {bool(running)}, readouts {len(readouts)}/{expected_readouts}"
+                    )
+                    start = time.time()
+                    i = 0
+                actual = len(readouts)
+            await self._stop_acquisition()
+        readouts = np.asarray(readouts)
+        self.logger.info(readouts.shape)
+        mean = readouts.mean(axis=(0, 1, 2))
+        if np.prod(readouts.shape[:3]) > 2:  # replace hot pixels with median value
+            maxes = readouts.max(axis=(0, 1, 2))
+            mean_without_max = (mean * actual - maxes) / (actual - 1)
+            hot = ((maxes - 400) / (mean_without_max - 400) > 3) & (maxes > 800)
+            # 400 subtraction helps with sensitivity; getting too close to true baseline might create divergence due to zero counts
+            # second clause is to avoid accidentally removing noise from baseline
+            self.logger.info(f"{hot.sum()} hot pixels")
+            # median = np.median(readouts, axis=(0, 1, 2))
+            mean[hot] = mean_without_max[hot]
+            self.logger.info(f"hot values: {maxes[hot]}, corrected to: {mean[hot]}")
+        return {"mean": np.rot90(mean, 1)}
+
+    async def _stop_acquisition(self):
+        try:
+            self.proem._dev.StopAcquisition()
+        except Exception as e:
+            self.logger.error("error stopping acquisition", exc_info=e)
+            raise e
+        attempts = 0
+        running = True
         while running:
+            await asyncio.sleep(0)
             try:
-                # wait is blocking, so use short waits and ignore timeouts
-                available_data, status = self.proem._dev.WaitForAcquisitionUpdate(wait)
-            # except self.PicamError as e:
+                _, status = self.proem._dev.WaitForAcquisitionUpdate(50)
+                running = status.running
             except Exception as e:
                 if e.code == self.PicamEnums.Error.TimeOutOccurred:
-                    await asyncio.sleep(0)
-                    self.logger.debug("waiting")
-                    continue
-                else:
-                    self.proem._dev.StopAcquisition()
-                    self.logger.error(exc_info=e)
-                    raise e
-            else:
-                running = status.running
-                self.logger.debug(f"running {running}, readouts {available_data.readout_count}")
-                if available_data.readout_count > 0:
-                    readouts.extend(self.proem._extract_available_data(available_data, copy=True))
-        if (actual := len(readouts)) != expected_readouts:
-            self.logger.warning(f"expected {expected_readouts} images, but got {actual}")
-        return {"mean": np.rot90(np.asarray(readouts).mean(axis=(0, 1, 2)), 1)}
+                    attempts += 1
+                    running1 = self.proem._dev.IsAcquisitionRunning()
+                    self.logger.info(f"waiting: attempts={attempts} {not running1}")
+                    if not running1:
+                        break
 
-    def _gen_mapping(self):
+    def _start_acquisition(self):
+        try:
+            self.proem._dev.StartAcquisition()
+        except Exception as e:
+            self.logger.error("", exc_info=True, stack_info=True)
+            raise e
+
+    def _gen_spectral_mapping(self):
         """get map corresponding to static aoi and wavelength range."""
-        # define input paramaters
+        spec = self._config["spectrometer"]
         mm_per_pixel = self.proem.params.PixelHeight.get_value() / 1e3
-        v = 200  # g/mm; grating groove spacing
-        a = (v * 10**-3) ** -1  # um/g
-        aoi = np.radians(self._config["grating_aoi"])
-        ws = np.linspace(
-            self._config["spectral_range"][0], self._config["spectral_range"][1], 2048
-        )  # um
-        f = 85  # mm; focal length of focusing lens
-        n = 1.6  # rough grating index of refraction
-        # calculate output angles
-        aods = np.arcsin(n * np.sin(aoi) - (ws / a))
-        # convert angle to space
-        xs = f * np.tan(aods)
-        rel_xs = np.abs(xs - xs.min())  # start from 0 and count up in length
-        # map spatially correlated wavelengths onto detector by interpolating
-        spec_divided = rel_xs / mm_per_pixel
-        g = interp1d(spec_divided, ws)
-        num_pixels = np.round(spec_divided[0], 0)
-        pixels = np.arange(num_pixels)
-        out = g(pixels) * 1000
-        out = out[
-            self._mappings["x_index"][0][:]
-        ]  # keep horizontal mappings equal size so wt5 file doesn't get confused
-        return np.round(out, 2)  # account for physical orientation of camera
+        self.logger.info(spec)
+        self.logger.error("Spectral mapping is not yet implemented")
+        raise NotImplementedError
 
     # --- properties ------------------------------------------------------------------------------
 
     def set_roi(self, _roi: dict[str, int]):
         roi = ROI_UI(**_roi)
         try:
-            # assert roi.height % roi.y_binning == 0 and roi.width % roi.x_binning == 0
-            # assert not (self._state["spectrometer_mode"] == "spectral" and roi.x_binning != 1)
-            assert roi.bottom >= roi.height
-        except AssertionError as e:
-            self.logger.error(e, exc_info=True)
+            self.proem.set_roi(**ui_to_native(roi)._asdict())
+        except Exception as e:
+            self.logger.error(f"roi: {roi}", exc_info=e)
             raise e
-
-        self.proem.set_roi(**ui_to_native(roi)._asdict())
-        # register new mappings
-        # TODO: indexing is weird?
-        new = self.get_roi()  # ui
+        new = ROI_UI(**self.get_roi())
 
         self._mappings["y_index"] = np.arange(
-            new["bottom"] - (new["height"] // new["y_binning"]),
-            new["bottom"],
+            new.bottom - (new.height // new.y_binning),
+            new.bottom,
             dtype="i2",
         )[:, None]
         self._mappings["x_index"] = np.arange(
-            new["left"],
-            new["left"] + (new["width"] // new["x_binning"]),
+            new.left,
+            new.left + (new.width // new.x_binning),
             dtype="i2",
         )[None, :]
-        self._mappings["wavelengths"] = self._gen_mapping()[None, :]
 
         # channel indexing is (y_index, x_index)
         # ignore 2D shape types until https://github.com/yaq-project/yaq-python/pull/82 is implemented
         self._channel_shapes = {
             "mean": (
-                new["height"] // new["y_binning"],
-                new["width"] // new["x_binning"],
+                new.height // new.y_binning,
+                new.width // new.x_binning,
             ),  # type: ignore
         }
 
@@ -189,7 +228,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
             param_enums = list(
                 filter(lambda x: my_param.can_set(x), getattr(self.PicamEnums, param))
             )
-            _set = lambda val: my_param.set_value(param_enums[val])
+            _set = lambda val: my_param.set_value([i for i in param_enums if i.name == val][0])
             _get = lambda _: my_param.get_value().name
             parameter_type = lambda: [i.name for i in param_enums]
         else:
@@ -208,14 +247,21 @@ class PiProem(HasMapping, HasMeasureTrigger):
             return value
 
         def set_parameter(val):
-            try:
-                _set(val)
-            except Exception as e:
-                self.logger.error(f"set {param} {val} {param_enums}")
-                self.logger.error(e, exc_info=True)
-                raise e
+            self._loop.create_task(self._set_when_ready(_set, param, val))
 
         return set_parameter, get_parameter, parameter_type
+
+    async def _set_when_ready(self, func, param, val):
+        if self._busy:
+            await asyncio.wait_for(self._not_busy_sig.wait(), None)
+        try:
+            func(val)
+            self.proem.commit_parameters()
+            self.logger.info("parameters updated")
+        except Exception as e:
+            self.logger.error(f"set {param} {val}")
+            self.logger.error(e, exc_info=True, stack_info=True)
+            raise e
 
     def get_parameters(self) -> list[str]:
         return self.parameters
@@ -231,7 +277,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
             self._mappings["x_index"] = (
                 np.arange(0, roi.width // roi.x_binning, dtype="i2")[None, :] + roi.left
             )
-            self._mappings["wavelengths"] = self._gen_mapping()[None, :]
+            self._mappings["wavelengths"] = self._gen_spectral_mapping()[None, :]
 
             self._state["spectrometer_mode"] = mode
         if mode == "spectral":
@@ -249,7 +295,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
                 )[None, :]
                 + roi.left
             )
-            self._mappings["wavelengths"] = self._gen_mapping()[None, :]
+            self._mappings["wavelengths"] = self._gen_spectral_mapping()[None, :]
             self._state["spectrometer_mode"] = mode
 
     def get_spectrometer_mode(self):
@@ -259,30 +305,19 @@ class PiProem(HasMapping, HasMeasureTrigger):
         self.proem.params.SensorTemperatureSetPoint.set_value(
             self._config["sensor_temperature_setpoint"]
         )
-        sensor_temp_status = self.proem.params.SensorTemperatureStatus.get_value().name
-        if sensor_temp_status == "Locked":
-            self.logger.info("Sensor temp stabilized.")
-            self._state["sensor_temperature"] = (
-                self.proem.params.SensorTemperatureReading.get_value()
-            )
-        else:
-            self._loop.run_in_executor(None, self._check_temp_stabilized())
+        self._loop.create_task(self._check_temp_stabilized())
 
-    def _check_temp_stabilized(self):
+    async def _check_temp_stabilized(self):
+        # DDK: so far, I can only get these values to refresh when I actually commit parameters
+        # (i.e. I cannot just call the following function; the parameters have to be different)
+        self.proem.commit_parameters()  # I think this updates the temperatures as well?
         set_temp = self.proem.params.SensorTemperatureSetPoint.get_value()
-        sensor_temp = self.proem.params.SensorTemperatureReading.get_value()
-        diff = set_temp - sensor_temp
-        while abs(diff) > 0.1:
-            self.logger.info(
-                f"Sensor is cooling.\
-                             Target: {set_temp} C. Current: {sensor_temp} C."
+        while (status := self.proem.params.SensorTemperatureStatus.get_value().name) != "Locked":
+            self.logger.warning(
+                f"Temperature {status}. Target: {set_temp} C. Current: {self.get_sensor_temperature()} C."
             )
-            sensor_temp = self.proem.params.SensorTemperatureReading.get_value()
-            self._state["sensor_temperature"] = sensor_temp
-            sleep(5)
-            diff = set_temp - sensor_temp
-        self.logger.info("Sensor temp stabilized.")
-        self._state["sensor_temperature"] = sensor_temp
+            await asyncio.sleep(5)
+        self.logger.info("Temp stabilized.")
 
     def get_sensor_temperature(self):
         return self.proem.params.SensorTemperatureReading.get_value()
@@ -294,7 +329,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
         return "MHz"
 
     def get_em_gain_limits(self):
-        return [1.0, 100.0]
+        return [1, 100]
 
     def close(self):
         self.proem.close()

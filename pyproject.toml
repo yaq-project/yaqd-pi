@@ -2,17 +2,18 @@
 requires = ["flit_core >=2,<4"]
 build-backend = "flit_core.buildapi"
 
-[tool.flit.metadata]
-module = "yaqd_pi"
-dist-name = "yaqd-pi"
-author = "yaq developers"
-home-page = "https://yaq.fyi"
-description-file = "README.md"
+[project]
+name = "yaqd-pi"
+authors = [
+    {name="Jason Scheeler"},
+    {name="Dan Kohler"}
+]
+readme = "README.md"
 requires-python = ">=3.7"
-requires = [
+dependencies = [
     "yaqd-core>=2021.2.0",
-    "instrumental<=0.7",
-    "scipy"
+    "instrumental-lib[cameras.picam]",
+    "numpy",
 ]
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
@@ -25,17 +26,23 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Scientific/Engineering",
 ]
+dynamic = ["version", "description"]
 
-[tool.flit.metadata.urls]
+[project.scripts]
+yaqd-pi-proem = "yaqd_pi._pi_proem:PiProem.main"
+
+[project.urls]
+Homepage = "https://yaq.fyi"
 Source = "https://github.com/yaq-project/yaqd-pi"
 Issues = "https://github.com/yaq-project/yaqd-pi/issues"
 
-[tool.flit.metadata.requires-extra]
+[tool.optional-dependencies]
 dev = ["black", "pre-commit"]
+gui = ["yaqc", "matplotlib", "click"]
 
-[tool.flit.scripts]
-yaqd-pi-proem = "yaqd_pi._pi_proem:PiProem.main"
-
+[[tool.mypy.overrides]]
+module = ["instrumental.drivers.*"]
+ignore_missing_imports = true
 
 [tool.black]
 line-length = 99
