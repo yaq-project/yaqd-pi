@@ -9,7 +9,6 @@ this issue should be superceded with mappings...
 
 from collections import namedtuple
 
-
 ROI_native = namedtuple(
     "ROI_native",
     ["x", "y", "width", "height", "y_binning", "x_binning"],

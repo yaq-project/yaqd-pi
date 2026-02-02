@@ -6,7 +6,6 @@ import numpy as np
 import click
 import logging
 
-
 log_level = logging.INFO
 norm = Normalize
 
