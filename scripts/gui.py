@@ -47,7 +47,8 @@ def main(port: int, host, spec):
     # TODO: buttons to select what x-axis to use
     if spec:
         spec = spec_from_toml(pathlib.Path(spec))
-        _x, wavelength = spec.mapping(x.squeeze())
+        # TODO: enforce monotonic expanded range
+        _x, wavelength = spec.mapping(np.linspace(x.min()-500, x.max()+500))
         coords = list(zip(*sorted(zip(wavelength, _x))))  # interp needs sorted values
 
         mapping = lambda x: spec.mapping(x)[1]
