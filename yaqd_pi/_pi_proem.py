@@ -47,6 +47,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
             raise PicamError("No devices found.")
         self.proem: PicamCamera = deviceArray[0].create()
 
+        self._background = set()
         self.parameters = list(self.proem.params.parameters.keys())
         self.enum_keys = set(self.get_parameters()) & set(self.PicamEnums._get_enum_dict())
 
@@ -85,7 +86,6 @@ class PiProem(HasMapping, HasMeasureTrigger):
             running = True
             i = 0
             self._start_acquisition()
-            self.logger.info("here")
             start = time.time()
             while running and (actual < expected_readouts):  # grab readouts
                 try:
@@ -95,7 +95,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
                     if e.code == self.PicamEnums.Error.TimeOutOccurred:
                         i += 1
                         await asyncio.sleep(0)
-                        if i > 100 and not (i % 100):
+                        if i > 10 and not (i % 10):
                             # ...however, if timeouts are excessive, the acquisition broke somehow
                             dt = time.time() - start
                             self.logger.info(
@@ -134,7 +134,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
                 actual = len(readouts)
             await self._stop_acquisition()
         readouts = np.asarray(readouts)
-        self.logger.info(readouts.shape)
+        self.logger.info(f"readout shape: {readouts.shape}, actual {actual}")
         mean = readouts.mean(axis=(0, 1, 2))
         if np.prod(readouts.shape[:3]) > 2:  # replace hot pixels with median value
             maxes = readouts.max(axis=(0, 1, 2))
@@ -247,9 +247,14 @@ class PiProem(HasMapping, HasMeasureTrigger):
             return value
 
         def set_parameter(val):
-            self._loop.create_task(self._set_when_ready(_set, param, val))
+            self._create_task(self._set_when_ready(_set, param, val))
 
         return set_parameter, get_parameter, parameter_type
+
+    def _create_task(self, coro):
+        task = asyncio.get_running_loop().create_task(coro)
+        self._background.add(task)
+        task.add_done_callback(self._background.discard)
 
     async def _set_when_ready(self, func, param, val):
         if self._busy:
@@ -305,7 +310,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
         self.proem.params.SensorTemperatureSetPoint.set_value(
             self._config["sensor_temperature_setpoint"]
         )
-        self._loop.create_task(self._check_temp_stabilized())
+        self._create_task(self._check_temp_stabilized())
 
     async def _check_temp_stabilized(self):
         # DDK: so far, I can only get these values to refresh when I actually commit parameters
