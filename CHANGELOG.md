@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 ## [Unreleased]
 
 ### Fixed
+- asyncio tasks have strong references to avoid premature garbage collection
+- fixed issue where frames did not collect for ~10 seconds when there was a hiccup
 - daemon logging now works as intended (was hidded due to interference with dependency logging settings)
 - `ReadoutCounts` works as intended for multiple frame collections
 
