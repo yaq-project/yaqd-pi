@@ -86,7 +86,6 @@ class PiProem(HasMapping, HasMeasureTrigger):
             running = True
             i = 0
             self._start_acquisition()
-            self.logger.info("here")
             start = time.time()
             while running and (actual < expected_readouts):  # grab readouts
                 try:
@@ -96,7 +95,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
                     if e.code == self.PicamEnums.Error.TimeOutOccurred:
                         i += 1
                         await asyncio.sleep(0)
-                        if i > 100 and not (i % 100):
+                        if i > 10 and not (i % 10):
                             # ...however, if timeouts are excessive, the acquisition broke somehow
                             dt = time.time() - start
                             self.logger.info(
@@ -135,7 +134,7 @@ class PiProem(HasMapping, HasMeasureTrigger):
                 actual = len(readouts)
             await self._stop_acquisition()
         readouts = np.asarray(readouts)
-        self.logger.info(readouts.shape)
+        self.logger.info(f"readout shape: {readouts.shape}, actual {actual}")
         mean = readouts.mean(axis=(0, 1, 2))
         if np.prod(readouts.shape[:3]) > 2:  # replace hot pixels with median value
             maxes = readouts.max(axis=(0, 1, 2))
