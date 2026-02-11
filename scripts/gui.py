@@ -5,6 +5,9 @@ import yaqc
 import numpy as np
 import click
 import logging
+import pathlib
+
+from _spec import spec_from_toml
 
 
 plt.style.use("dark_background")
@@ -16,7 +19,8 @@ norm = Normalize
 @click.command()
 @click.option("--host", default="127.0.0.1", help="host of yaqd-pi-proem. defaults to 127.0.0.1")
 @click.argument("port", type=int)
-def main(port: int, host):
+@click.option("--spec", default="")
+def main(port: int, host, spec):
     logger = logging.getLogger("GUI")
     logger.setLevel(log_level)
     logger.addHandler(logging.StreamHandler())
@@ -37,6 +41,15 @@ def main(port: int, host):
         y0 = np.zeros((x * y).shape)
     art = ax.matshow(y0, cmap="viridis")
     fig.colorbar(art, ax=ax)
+
+    # spec color labels
+    # TODO: buttons to select what x-axis to use
+    if spec:
+        spec = spec_from_toml(pathlib.Path(spec))
+        colors = spec.mapping()
+        spec_ax = ax.twinx()
+        spec_ax.set_xlim(colors[0], colors=[-1])
+        spec_ax.set_xlabel("wavelength (nm)")
 
     integration = Slider(
         opt1, "integration time (ms)", 33, 1e3, valstep=1, valinit=cam.get_exposure_time()
