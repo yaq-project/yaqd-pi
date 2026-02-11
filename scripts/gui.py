@@ -7,6 +7,7 @@ import click
 import logging
 import pathlib
 
+from functools import partial
 from _spec import spec_from_toml
 
 
@@ -42,13 +43,19 @@ def main(port: int, host, spec):
     art = ax.matshow(y0, cmap="viridis")
     fig.colorbar(art, ax=ax)
 
-    # spec color labels
+    # spec wavelength labels
     # TODO: buttons to select what x-axis to use
     if spec:
         spec = spec_from_toml(pathlib.Path(spec))
-        colors = spec.mapping()
-        spec_ax = ax.twinx()
-        spec_ax.set_xlim(colors[0], colors=[-1])
+        _x, wavelength = spec.mapping(x.squeeze())
+        coords = list(zip(*sorted(zip(wavelength, _x))))  # interp needs sorted values
+
+        mapping = lambda x: spec.mapping(x)[1]
+        inverse_mapping = partial(np.interp, xp=wavelength, fp=_x)
+        spec_ax = ax.secondary_xaxis(
+            "bottom", 
+            functions=(mapping, inverse_mapping)
+        )
         spec_ax.set_xlabel("wavelength (nm)")
 
     integration = Slider(
