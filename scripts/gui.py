@@ -7,7 +7,9 @@ import click
 import logging
 
 
+plt.style.use("dark_background")
 log_level = logging.INFO
+# norm = LogNorm
 norm = Normalize
 
 
@@ -26,7 +28,7 @@ def main(port: int, host):
     y = cam.get_mappings()["y_index"]
 
     fig, (ax, opt1, opt2, opt3) = plt.subplots(
-        nrows=4, height_ratios=[10, 1, 1, 1], gridspec_kw={"hspace": 0.1}
+        nrows=4, height_ratios=[10, 1, 1, 1], gridspec_kw={"hspace": 0.05}, layout="tight"
     )
 
     try:
@@ -42,7 +44,7 @@ def main(port: int, host):
     acquisition = Slider(
         opt2, "acquisitions (2^x)", 0, 8, valinit=int(np.log2(cam.get_readout_count())), valstep=1
     )
-    measure_button = CheckButtons(opt3, labels=["call measure"], label_props=dict(fontsize=[20]))
+    measure_button = CheckButtons(opt3, labels=["call measure"], label_props=dict(fontsize=[20]), frame_props=dict(facecolor="white"))
 
     state = {"current": 0, "next": 0}
     title = "ID {}"
@@ -52,7 +54,7 @@ def main(port: int, host):
             try:
                 ax.set_title(f"ID {data['measurement_id']}")
                 if data["measurement_id"]:
-                    art.set_data(data["mean"])
+                    art.set_data(data["mean"].clip(min=600))
                     art.set_norm(norm())
             except Exception as e:
                 logger.error("", exc_info=e, stack_info=True)
@@ -89,7 +91,6 @@ def main(port: int, host):
     integration.on_changed(update_integration_time)
     acquisition.on_changed(update_acquisition)
 
-    plt.tight_layout()
     timer.start()
     plt.show()
 
