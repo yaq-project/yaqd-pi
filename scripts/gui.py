@@ -44,7 +44,12 @@ def main(port: int, host):
     acquisition = Slider(
         opt2, "acquisitions (2^x)", 0, 8, valinit=int(np.log2(cam.get_readout_count())), valstep=1
     )
-    measure_button = CheckButtons(opt3, labels=["call measure"], label_props=dict(fontsize=[20]), frame_props=dict(facecolor="white"))
+    measure_button = CheckButtons(
+        opt3,
+        labels=["call measure"],
+        label_props=dict(fontsize=[20]),
+        frame_props=dict(facecolor="white"),
+    )
 
     state = {"current": 0, "next": 0}
     title = "ID {}"
