@@ -52,10 +52,7 @@ def main(port: int, host, spec):
 
         mapping = lambda x: spec.mapping(x)[1]
         inverse_mapping = partial(np.interp, xp=wavelength, fp=_x)
-        spec_ax = ax.secondary_xaxis(
-            "bottom", 
-            functions=(mapping, inverse_mapping)
-        )
+        spec_ax = ax.secondary_xaxis("bottom", functions=(mapping, inverse_mapping))
         spec_ax.set_xlabel("wavelength (nm)")
 
     integration = Slider(
