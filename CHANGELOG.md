@@ -17,5 +17,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - channel name `img` -> `mean`
 
 ### Added
+- gui: can apply a spectrometer mapping to see wavelength along axis
 - yaq properties for selected parameters
 - initial release
