@@ -5,6 +5,10 @@ import yaqc
 import numpy as np
 import click
 import logging
+import pathlib
+
+from functools import partial
+from _spec import spec_from_toml
 
 
 plt.style.use("dark_background")
@@ -16,7 +20,8 @@ norm = Normalize
 @click.command()
 @click.option("--host", default="127.0.0.1", help="host of yaqd-pi-proem. defaults to 127.0.0.1")
 @click.argument("port", type=int)
-def main(port: int, host):
+@click.option("--spec", default="")
+def main(port: int, host, spec):
     logger = logging.getLogger("GUI")
     logger.setLevel(log_level)
     logger.addHandler(logging.StreamHandler())
@@ -37,6 +42,19 @@ def main(port: int, host):
         y0 = np.zeros((x * y).shape)
     art = ax.matshow(y0, cmap="viridis")
     fig.colorbar(art, ax=ax)
+
+    # spec wavelength labels
+    # TODO: buttons to select what x-axis to use
+    if spec:
+        spec = spec_from_toml(pathlib.Path(spec))
+        # TODO: enforce monotonic expanded range
+        _x, wavelength = spec.mapping(np.linspace(x.min() - 500, x.max() + 500))
+        coords = list(zip(*sorted(zip(wavelength, _x))))  # interp needs sorted values
+
+        mapping = lambda x: spec.mapping(x)[1]
+        inverse_mapping = partial(np.interp, xp=wavelength, fp=_x)
+        spec_ax = ax.secondary_xaxis("bottom", functions=(mapping, inverse_mapping))
+        spec_ax.set_xlabel("wavelength (nm)")
 
     integration = Slider(
         opt1, "integration time (ms)", 33, 1e3, valstep=1, valinit=cam.get_exposure_time()
