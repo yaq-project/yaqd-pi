@@ -6,7 +6,6 @@ import numpy as np
 import click
 import logging
 
-
 plt.style.use("dark_background")
 log_level = logging.INFO
 # norm = LogNorm
